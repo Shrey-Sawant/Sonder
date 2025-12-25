@@ -4,15 +4,15 @@ from typing import Optional
 
 
 class ScheduleRequestBase(BaseModel):
-    student_id: int
-    counsellor_id: int
+    student_id: str
+    counsellor_id: str
     scheduled_time: datetime
     status: str = "pending"
 
 
 class ScheduleRequestCreate(ScheduleRequestBase):
-    pass
-
+    counsellor_id: int
+    scheduled_time: datetime
 
 class ScheduleRequestResponse(ScheduleRequestBase):
     id: int
