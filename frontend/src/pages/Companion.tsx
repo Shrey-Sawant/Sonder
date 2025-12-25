@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Sparkles, AlertTriangle } from 'lucide-react';
 import { Message } from '../../types';
-import { sendMessageToGemini } from '../services/geminiService';
+import api from '../services/api';
 
 const Companion: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
@@ -39,7 +39,11 @@ const Companion: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const responseText = await sendMessageToGemini(input);
+      // Use real backend API
+      const response = await api.post('/chatbot/chat', { message: input });
+      // Assuming response.data is the AI text directly or object
+      const responseText = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'model',
@@ -49,6 +53,8 @@ const Companion: React.FC = () => {
       setMessages(prev => [...prev, aiMsg]);
     } catch (error) {
       console.error(error);
+      const errorMsg: Message = { id: Date.now().toString(), role: 'model', text: "Sorry, I'm having trouble connecting right now.", timestamp: new Date() };
+      setMessages(prev => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);
     }
@@ -78,7 +84,7 @@ const Companion: React.FC = () => {
           </div>
         </div>
         <div className="bg-zinc-100 dark:bg-zinc-800 px-3 py-1 rounded-full text-xs text-zinc-500 font-medium flex items-center gap-1">
-           <AlertTriangle size={12} /> Not for emergencies
+          <AlertTriangle size={12} /> Not for emergencies
         </div>
       </div>
 
@@ -90,38 +96,36 @@ const Companion: React.FC = () => {
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div className={`flex gap-3 max-w-[85%] md:max-w-[70%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-              <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center ${
-                msg.role === 'user' 
-                  ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300' 
+              <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center ${msg.role === 'user'
+                  ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300'
                   : 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
-              }`}>
+                }`}>
                 {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
               </div>
-              <div className={`p-4 rounded-2xl text-sm md:text-base leading-relaxed whitespace-pre-wrap ${
-                msg.role === 'user'
+              <div className={`p-4 rounded-2xl text-sm md:text-base leading-relaxed whitespace-pre-wrap ${msg.role === 'user'
                   ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-tr-none'
                   : 'bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-tl-none shadow-sm'
-              }`}>
+                }`}>
                 {msg.text}
               </div>
             </div>
           </div>
         ))}
         {isLoading && (
-           <div className="flex justify-start animate-pulse">
-              <div className="flex gap-3 max-w-[70%]">
-                <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600">
-                   <Bot size={16} />
-                </div>
-                <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-4 rounded-2xl rounded-tl-none">
-                   <div className="flex gap-1">
-                     <span className="w-2 h-2 rounded-full bg-zinc-400 animate-bounce" style={{ animationDelay: '0ms'}}></span>
-                     <span className="w-2 h-2 rounded-full bg-zinc-400 animate-bounce" style={{ animationDelay: '150ms'}}></span>
-                     <span className="w-2 h-2 rounded-full bg-zinc-400 animate-bounce" style={{ animationDelay: '300ms'}}></span>
-                   </div>
+          <div className="flex justify-start animate-pulse">
+            <div className="flex gap-3 max-w-[70%]">
+              <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600">
+                <Bot size={16} />
+              </div>
+              <div className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-4 rounded-2xl rounded-tl-none">
+                <div className="flex gap-1">
+                  <span className="w-2 h-2 rounded-full bg-zinc-400 animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                  <span className="w-2 h-2 rounded-full bg-zinc-400 animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                  <span className="w-2 h-2 rounded-full bg-zinc-400 animate-bounce" style={{ animationDelay: '300ms' }}></span>
                 </div>
               </div>
-           </div>
+            </div>
+          </div>
         )}
         <div ref={messagesEndRef} />
       </div>

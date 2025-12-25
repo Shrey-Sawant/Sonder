@@ -1,12 +1,15 @@
 import React from 'react';
 import { ArrowRight, Sun, CloudRain, Activity, CalendarCheck } from 'lucide-react';
 import { ViewState } from '../../types';
+import { useAuth } from '../context/AuthContext';
 
 interface DashboardProps {
   setView: (view: ViewState) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ setView }) => {
+  const { user } = useAuth();
+
   const greeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return "Good morning";
@@ -20,7 +23,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setView }) => {
       <header className="flex justify-between items-end">
         <div>
           <h1 className="text-4xl md:text-5xl font-bold text-zinc-900 dark:text-white tracking-tight">
-            {greeting()}, Alex.
+            {greeting()}, {user?.username || 'Friend'}.
           </h1>
           <p className="mt-2 text-zinc-500 dark:text-zinc-400 text-lg font-light">
             How is your inner weather today?
@@ -42,7 +45,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setView }) => {
         </div>
 
         <div className="p-6 rounded-3xl bg-blue-50 dark:bg-zinc-900/50 border border-blue-100 dark:border-zinc-800 hover:scale-[1.02] transition-transform cursor-pointer group">
-           <div className="flex justify-between items-start mb-4">
+          <div className="flex justify-between items-start mb-4">
             <div className="p-3 bg-white dark:bg-zinc-800 rounded-2xl shadow-sm text-blue-500">
               <CloudRain size={24} />
             </div>
@@ -52,8 +55,8 @@ const Dashboard: React.FC<DashboardProps> = ({ setView }) => {
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">Take 2 minutes to ground yourself with 4-7-8 breathing.</p>
         </div>
 
-         <div className="p-6 rounded-3xl bg-emerald-50 dark:bg-zinc-900/50 border border-emerald-100 dark:border-zinc-800 hover:scale-[1.02] transition-transform cursor-pointer group">
-           <div className="flex justify-between items-start mb-4">
+        <div className="p-6 rounded-3xl bg-emerald-50 dark:bg-zinc-900/50 border border-emerald-100 dark:border-zinc-800 hover:scale-[1.02] transition-transform cursor-pointer group">
+          <div className="flex justify-between items-start mb-4">
             <div className="p-3 bg-white dark:bg-zinc-800 rounded-2xl shadow-sm text-emerald-500">
               <CalendarCheck size={24} />
             </div>
@@ -70,7 +73,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setView }) => {
         <div className="relative z-10 max-w-2xl">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Feeling overwhelmed?</h2>
           <p className="text-zinc-400 text-lg mb-8">Sonder is here to listen. No judgment, just a safe space to unpack your thoughts.</p>
-          <button 
+          <button
             onClick={() => setView(ViewState.COMPANION)}
             className="bg-white text-zinc-900 px-8 py-4 rounded-xl font-semibold hover:bg-zinc-100 transition-colors flex items-center gap-2"
           >
@@ -89,9 +92,9 @@ const Dashboard: React.FC<DashboardProps> = ({ setView }) => {
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="group cursor-pointer">
               <div className="aspect-square rounded-2xl overflow-hidden bg-zinc-200 dark:bg-zinc-800 mb-3 relative">
-                 <img src={`https://picsum.photos/300/300?random=${i}`} alt="Content" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                 <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors"></div>
-                 <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-lg">5 min</div>
+                <img src={`https://picsum.photos/300/300?random=${i}`} alt="Content" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors"></div>
+                <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded-lg">5 min</div>
               </div>
               <h4 className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm">Understanding Anxiety {i}</h4>
               <p className="text-xs text-zinc-500 dark:text-zinc-400">Dr. Sarah Chen</p>
