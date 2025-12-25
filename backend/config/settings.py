@@ -1,4 +1,7 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv()  
 
 
 class Settings:
@@ -15,11 +18,10 @@ class Settings:
     ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
     # SMTP
-    MAIL_USERNAME = os.getenv("MAIL_USERNAME")
-    MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
-    MAIL_FROM = os.getenv("MAIL_FROM")
-    MAIL_PORT = int(os.getenv("MAIL_PORT", 587))
-    MAIL_SERVER = os.getenv("MAIL_SERVER", "smtp.gmail.com")
-
+    MAIL_USERNAME = os.getenv("SMTP_USER")
+    MAIL_PASSWORD = os.getenv("SMTP_PASSWORD")
+    MAIL_FROM = os.getenv("SMTP_USER")
+    MAIL_PORT = int(os.getenv("SMTP_PORT", 587))
+    MAIL_SERVER = os.getenv("SMTP_HOST", "smtp.gmail.com")
 
 settings = Settings()
