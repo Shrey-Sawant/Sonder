@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import api from '../services/api';
 import { Phone, Shield, Calendar, Clock, Star, MessageSquare, AlertOctagon, Lock } from 'lucide-react';
 import { Counselor } from '../../types';
 
@@ -7,11 +8,48 @@ const Connect: React.FC = () => {
   const [showSOS, setShowSOS] = useState(false);
   const [isAnonymous, setIsAnonymous] = useState(false);
 
-  const counselors: Counselor[] = [
-    { id: '1', name: 'Dr. Emily Stone', specialty: 'Anxiety & Stress', available: true, rating: 4.9, imageUrl: 'https://picsum.photos/100/100?random=20' },
-    { id: '2', name: 'Mr. Raj Patel', specialty: 'Academic Burnout', available: false, rating: 4.8, imageUrl: 'https://picsum.photos/100/100?random=21' },
-    { id: '3', name: 'Ms. Sarah Al-Fayed', specialty: 'Trauma & Grief', available: true, rating: 5.0, imageUrl: 'https://picsum.photos/100/100?random=22' },
-  ];
+  const [counselors, setCounselors] = useState<Counselor[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchCounselors = async () => {
+      try {
+        // Backend returns UserResponse objects, we need to map to Counselor type
+        const res = await api.get('/users/?role=counsellor');
+        // Simple mapping, assuming backend returns list of users
+        const mapped = res.data.map((u: any) => ({
+          id: u.id,
+          name: u.username, // or full name if available
+          specialty: u.certification || 'General Counselor', // fallback
+          available: u.is_available ?? true, // fallback
+          rating: u.rating || 5.0, // fallback
+          imageUrl: `https://ui-avatars.com/api/?name=${u.username}&background=random`
+        }));
+        setCounselors(mapped);
+      } catch (err) {
+        console.error("Failed to fetch counselors", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCounselors();
+  }, []);
+
+  const handleSchedule = async (counsellorId: string) => {
+    const time = prompt("Enter scheduled time (YYYY-MM-DDTHH:MM:SS):", new Date().toISOString());
+    if (!time) return;
+    try {
+      await api.post('/schedule/', {
+        student_id: 1, // Ideally from AuthContext
+        counsellor_id: parseInt(counsellorId),
+        scheduled_time: time,
+        status: "pending"
+      });
+      alert("Schedule requested successfully!");
+    } catch (e) {
+      alert("Failed to schedule: " + e);
+    }
+  };
 
   return (
     <div className="space-y-8 relative">
@@ -27,21 +65,21 @@ const Connect: React.FC = () => {
             <div className="p-6 space-y-4">
               <button className="w-full bg-zinc-100 dark:bg-zinc-800 p-4 rounded-xl flex items-center justify-between hover:bg-zinc-200 dark:hover:bg-zinc-700">
                 <div className="flex items-center gap-3">
-                   <Phone className="text-red-500" />
-                   <div className="text-left">
-                     <p className="font-bold text-zinc-900 dark:text-white">National Suicide Prevention</p>
-                     <p className="text-xs text-zinc-500">Available 24/7</p>
-                   </div>
+                  <Phone className="text-red-500" />
+                  <div className="text-left">
+                    <p className="font-bold text-zinc-900 dark:text-white">National Suicide Prevention</p>
+                    <p className="text-xs text-zinc-500">Available 24/7</p>
+                  </div>
                 </div>
                 <span className="font-mono font-bold text-xl text-zinc-900 dark:text-white">988</span>
               </button>
               <button className="w-full bg-zinc-100 dark:bg-zinc-800 p-4 rounded-xl flex items-center justify-between hover:bg-zinc-200 dark:hover:bg-zinc-700">
-                 <div className="flex items-center gap-3">
-                   <Shield className="text-blue-500" />
-                   <div className="text-left">
-                     <p className="font-bold text-zinc-900 dark:text-white">Campus Security</p>
-                     <p className="text-xs text-zinc-500">University Line</p>
-                   </div>
+                <div className="flex items-center gap-3">
+                  <Shield className="text-blue-500" />
+                  <div className="text-left">
+                    <p className="font-bold text-zinc-900 dark:text-white">Campus Security</p>
+                    <p className="text-xs text-zinc-500">University Line</p>
+                  </div>
                 </div>
                 <span className="font-mono font-bold text-xl text-zinc-900 dark:text-white">555-0199</span>
               </button>
@@ -56,7 +94,7 @@ const Connect: React.FC = () => {
           <h1 className="text-4xl font-bold text-zinc-900 dark:text-white tracking-tight mb-2">Connect</h1>
           <p className="text-zinc-500 dark:text-zinc-400">Professional help and peer support, on your terms.</p>
         </div>
-        <button 
+        <button
           onClick={() => setShowSOS(true)}
           className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-6 py-3 rounded-full font-bold flex items-center gap-2 hover:bg-red-100 transition-colors animate-pulse"
         >
@@ -68,21 +106,19 @@ const Connect: React.FC = () => {
       <div className="flex p-1 bg-zinc-100 dark:bg-zinc-800 rounded-xl w-fit">
         <button
           onClick={() => setActiveSection('counseling')}
-          className={`px-6 py-2 rounded-lg font-medium transition-all ${
-            activeSection === 'counseling'
+          className={`px-6 py-2 rounded-lg font-medium transition-all ${activeSection === 'counseling'
               ? 'bg-white dark:bg-zinc-700 shadow text-zinc-900 dark:text-white'
               : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
-          }`}
+            }`}
         >
           Counseling Hub
         </button>
         <button
           onClick={() => setActiveSection('peer')}
-          className={`px-6 py-2 rounded-lg font-medium transition-all ${
-            activeSection === 'peer'
+          className={`px-6 py-2 rounded-lg font-medium transition-all ${activeSection === 'peer'
               ? 'bg-white dark:bg-zinc-700 shadow text-zinc-900 dark:text-white'
               : 'text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200'
-          }`}
+            }`}
         >
           Peer Community
         </button>
@@ -101,7 +137,7 @@ const Connect: React.FC = () => {
                 <p className="text-xs text-indigo-700 dark:text-indigo-300">Hide your identity when booking appointments.</p>
               </div>
             </div>
-            <button 
+            <button
               onClick={() => setIsAnonymous(!isAnonymous)}
               className={`w-12 h-6 rounded-full transition-colors relative ${isAnonymous ? 'bg-indigo-600' : 'bg-zinc-300 dark:bg-zinc-700'}`}
             >
@@ -124,15 +160,15 @@ const Connect: React.FC = () => {
                     <Star size={12} className="fill-yellow-400 text-yellow-400" /> {counselor.rating}
                   </div>
                 </div>
-                
+
                 <div className="flex gap-2 mt-2">
-                   <span className={`px-3 py-1 rounded-full text-xs font-medium ${counselor.available ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800'}`}>
-                     {counselor.available ? 'Available Today' : 'Next Slot: Tomorrow'}
-                   </span>
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${counselor.available ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800'}`}>
+                    {counselor.available ? 'Available Today' : 'Next Slot: Tomorrow'}
+                  </span>
                 </div>
 
                 <div className="mt-auto pt-4 border-t border-zinc-100 dark:border-zinc-800 grid grid-cols-2 gap-3">
-                  <button className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 text-sm font-medium hover:bg-zinc-200 transition-colors">
+                  <button onClick={() => handleSchedule(counselor.id)} className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 text-sm font-medium hover:bg-zinc-200 transition-colors">
                     <Calendar size={16} /> Schedule
                   </button>
                   <button className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm font-medium hover:bg-zinc-800 transition-colors">
@@ -161,18 +197,18 @@ const Connect: React.FC = () => {
           <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-4">Active Communities</h3>
           <div className="space-y-4">
             {['Exam Stress Support', 'International Students', 'Mindfulness Beginners'].map((topic, i) => (
-               <div key={i} className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 flex items-center justify-between cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-xl">
-                      {['📚', '🌍', '🧘‍♂️'][i]}
-                    </div>
-                    <div>
-                       <h4 className="font-bold text-zinc-900 dark:text-white">{topic}</h4>
-                       <p className="text-xs text-zinc-500">24 Online • Moderated by trained peers</p>
-                    </div>
+              <div key={i} className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 flex items-center justify-between cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-xl">
+                    {['📚', '🌍', '🧘‍♂️'][i]}
                   </div>
-                  <button className="px-4 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800">Join</button>
-               </div>
+                  <div>
+                    <h4 className="font-bold text-zinc-900 dark:text-white">{topic}</h4>
+                    <p className="text-xs text-zinc-500">24 Online • Moderated by trained peers</p>
+                  </div>
+                </div>
+                <button className="px-4 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800">Join</button>
+              </div>
             ))}
           </div>
         </div>
