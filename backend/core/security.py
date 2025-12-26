@@ -4,9 +4,9 @@ import jose
 from passlib.context import CryptContext
 from config.settings import settings
 
-# ✅ Use Argon2 (no 72-byte limit, more secure)
+# ✅ Use bcrypt (widely compatible, secure)
 pwd_context = CryptContext(
-    schemes=["argon2"],
+    schemes=["bcrypt"],
     deprecated="auto",
 )
 

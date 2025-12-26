@@ -25,6 +25,19 @@ async def register(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
+    # ✅ Validate password length (bcrypt has 72 byte limit)
+    if len(user.password.encode('utf-8')) > 72:
+        raise HTTPException(
+            status_code=400, 
+            detail="Password is too long. Maximum 72 characters allowed."
+        )
+    
+    if len(user.password) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 8 characters long."
+        )
+
     # Check email
     result = await db.execute(select(User).where(User.email == user.email))
     if result.scalars().first():
@@ -36,7 +49,13 @@ async def register(
         raise HTTPException(status_code=400, detail="Username already taken")
 
     # Hash password
-    hashed_password = get_password_hash(user.password)
+    try:
+        hashed_password = get_password_hash(user.password)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail="Password processing error. Please use a simpler password."
+        )
 
     # Auto-verify students & admins
     is_verified = user.role in {"student", "admin"}

@@ -58,6 +58,16 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login' }) => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!isLogin) {
+            if (formData.password.length < 8) {
+                showModal('Invalid Password', 'Password must be at least 8 characters long.', 'warning');
+                return;
+            }
+            if (formData.password.length > 72) {
+                showModal('Invalid Password', 'Password is too long. Maximum 72 characters allowed.', 'warning');
+                return;
+            }
+        }
         setLoading(true);
         try {
             if (isLogin) {
@@ -205,8 +215,8 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login' }) => {
                                 key={role}
                                 onClick={() => setActiveTab(role)}
                                 className={`flex-1 py-2.5 text-sm font-medium rounded-lg capitalize transition-all ${activeTab === role
-                                        ? 'bg-white dark:bg-zinc-700 shadow-md text-orange-600 dark:text-orange-400'
-                                        : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+                                    ? 'bg-white dark:bg-zinc-700 shadow-md text-orange-600 dark:text-orange-400'
+                                    : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
                                     }`}
                             >
                                 {role}

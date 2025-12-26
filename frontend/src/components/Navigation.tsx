@@ -3,8 +3,8 @@ import { Home, MessageCircleHeart, Library, Users, BarChart3, LifeBuoy } from 'l
 import { ViewState } from '../../types';
 
 interface NavigationProps {
-  currentView: ViewState;
-  setView: (view: ViewState) => void;
+  currentView: string;
+  setView: (view: string) => void;
 }
 
 import { useAuth } from '../context/AuthContext';
