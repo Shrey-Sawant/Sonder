@@ -8,53 +8,36 @@ from models.journal import JournalEntry
 from schemas.journal import JournalEntryCreate, JournalEntryResponse
 from api.v1.auth import get_current_user
 from models.user import User
-import torch
+from groq import Groq
+import os
+import json
 
-try:
-    from transformers import pipeline
-    # Load sentiment analysis pipeline. Using a specific lightweight model for speed if needed, 
-    # but the requested distilbert-base-uncased-finetuned-sst-2-english is good.
-    device = 0 if torch.cuda.is_available() else -1
-    sentiment_pipeline = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english", device=device)
-except ImportError:
-    sentiment_pipeline = None
-    from textblob import TextBlob
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 router = APIRouter()
 
 def get_sentiment(text: str):
-    if sentiment_pipeline:
-        try:
-            result = sentiment_pipeline(text[:512])[0] # Limit to 512 tokens to avoid errors
-            # Output format: {'label': 'POSITIVE', 'score': 0.99}
-            score = result['score'] if result['label'] == 'POSITIVE' else -result['score']
-            
-            # Map to our badges: 😔 / 😐 / 🙂 / 😄
-            if score > 0.5:
-                label = "😄"
-            elif score > 0:
-                label = "🙂"
-            elif score > -0.5:
-                label = "😐"
-            else:
-                label = "😔"
-                
-            return score, label
-        except Exception:
-            pass # Fallback if pipeline fails
-            
-    # Fallback to TextBlob
-    blob = TextBlob(text)
-    score = blob.sentiment.polarity
-    if score > 0.5:
-        label = "😄"
-    elif score > 0:
-        label = "🙂"
-    elif score > -0.5:
-        label = "😐"
-    else:
-        label = "😔"
-    return score, label
+    prompt = f"""Analyze the sentiment of the following journal entry. 
+Respond ONLY with a valid JSON object containing exactly these two keys:
+- "score": a float between -1.0 (extremely negative) and 1.0 (extremely positive)
+- "label": a single emoji string, must be exactly one of: 😄, 🙂, 😐, 😔
+
+Journal entry:
+{text}
+"""
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
+            response_format={"type": "json_object"}
+        )
+        content = response.choices[0].message.content
+        data = json.loads(content)
+        return float(data.get("score", 0.0)), data.get("label", "😐")
+    except Exception:
+        # Fallback if API fails
+        return 0.0, "😐"
 
 @router.post("/entry", response_model=JournalEntryResponse)
 async def create_journal_entry(
