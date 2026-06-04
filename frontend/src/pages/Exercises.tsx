@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Play, Square, Volume2, VolumeX, Wind, HeartPulse, Activity } from 'lucide-react';
-import axios from 'axios';
+import api from '../services/api';
 
 // Box Breathing Component
 const BoxBreathing = ({ onComplete }: { onComplete: (duration: number) => void }) => {
@@ -166,11 +166,10 @@ const Exercises: React.FC = () => {
 
   const handleComplete = async (type: string, duration: number) => {
       try {
-          const token = localStorage.getItem('access_token');
-          const res = await axios.post('http://localhost:8000/api/v1/exercises/complete', {
+          const res = await api.post('/exercises/complete', {
               exercise_type: type,
               duration_seconds: duration
-          }, { headers: { Authorization: `Bearer ${token}` }});
+          });
           
           setStreak(res.data.streak);
       } catch (e) {

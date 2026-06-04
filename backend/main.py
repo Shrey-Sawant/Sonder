@@ -69,6 +69,8 @@ class SanitizationMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SanitizationMiddleware)
 
+import os
+
 # CORS
 origins = [
     "http://localhost:5173",
@@ -77,6 +79,10 @@ origins = [
     "http://localhost:8081",
     "https://sonder-sigma.vercel.app",
 ]
+
+frontend_url = os.getenv("FRONTEND_URL")
+if frontend_url and frontend_url not in origins:
+    origins.append(frontend_url)
 
 app.add_middleware(
     CORSMiddleware,

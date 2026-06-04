@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowRight, Sun, CloudRain, Activity, CalendarCheck, CheckCircle2, Heart } from 'lucide-react';
 import { ViewState } from '../../types';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
+import api from '../services/api';
 import { requestNotificationPermission } from '../services/notifications';
 
 interface DashboardProps {
@@ -62,11 +62,10 @@ const Dashboard: React.FC<DashboardProps> = ({ setView }) => {
 
   const submitCheckIn = async () => {
       try {
-          const token = localStorage.getItem('access_token');
-          const res = await axios.post('http://localhost:8000/api/v1/checkin/', {
+          const res = await api.post('/checkin/', {
               q1_score: q1,
               q2_score: q2
-          }, { headers: { Authorization: `Bearer ${token}` } });
+          });
           
           setCheckInResult(res.data);
           localStorage.setItem('last_checkin_date', new Date().toDateString());
@@ -84,15 +83,14 @@ const Dashboard: React.FC<DashboardProps> = ({ setView }) => {
   const handleSetReminder = async () => {
       await requestNotificationPermission();
       try {
-          const token = localStorage.getItem('access_token');
           // Mock push subscription for now as we don't have VAPID keys
           const mockSub = { endpoint: 'mock-endpoint', keys: { p256dh: 'mock', auth: 'mock' } };
           
-          await axios.post('http://localhost:8000/api/v1/reminders/', {
+          await api.post('/reminders/', {
               type: 'daily_checkin',
               time_of_day: reminderTime,
               push_subscription: mockSub
-          }, { headers: { Authorization: `Bearer ${token}` } });
+          });
           
           setIsReminderSet(true);
           localStorage.setItem('reminder_time', reminderTime);

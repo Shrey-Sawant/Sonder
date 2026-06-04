@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Sentiment from 'sentiment';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { Smile, Frown, Meh, Sparkles } from 'lucide-react';
-import axios from 'axios';
+import api from '../services/api';
 
 const sentiment = new Sentiment();
 
@@ -48,11 +48,7 @@ const Journal: React.FC = () => {
 
   const fetchHistory = async () => {
     try {
-      // Adjust with actual API base url config
-      const token = localStorage.getItem('access_token');
-      const res = await axios.get('http://localhost:8000/api/v1/journal/history', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await api.get('/journal/history');
       setHistory(res.data.reverse()); // Chronological for chart
     } catch (error) {
       console.error('Error fetching history:', error);
@@ -63,11 +59,8 @@ const Journal: React.FC = () => {
     if (!content.trim()) return;
     setIsSaving(true);
     try {
-      const token = localStorage.getItem('access_token');
-      await axios.post('http://localhost:8000/api/v1/journal/entry', {
+      await api.post('/journal/entry', {
         text: content,
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       
       setContent('');
