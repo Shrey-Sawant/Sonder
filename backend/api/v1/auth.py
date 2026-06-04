@@ -81,11 +81,12 @@ async def register(
     # Counsellor email verification
     if user.role == "counsellor":
         otp = "".join(random.choices(string.digits, k=6))
-        otp_store[user.email] = {
+        email_str = str(user.email)
+        otp_store[email_str] = {
             "otp": otp,
             "expires_at": datetime.utcnow() + timedelta(minutes=5)
         }
-        background_tasks.add_task(send_verification_email, user.email, otp)
+        background_tasks.add_task(send_verification_email, email_str, otp)
 
     return new_user
 
@@ -95,7 +96,8 @@ async def register(
 # =========================
 @router.post("/verify-email")
 async def verify_email(data: VerifyEmail, db: AsyncSession = Depends(get_db)):
-    otp_entry = otp_store.get(data.email)
+    email_str = str(data.email)
+    otp_entry = otp_store.get(email_str)
 
     if not otp_entry:
         raise HTTPException(status_code=400, detail="OTP not found. Request a new one.")
@@ -116,7 +118,7 @@ async def verify_email(data: VerifyEmail, db: AsyncSession = Depends(get_db)):
     await db.commit()
 
     # Remove OTP after verification
-    otp_store.pop(data.email, None)
+    otp_store.pop(email_str, None)
 
     return {"message": "Email verified successfully"}
 
