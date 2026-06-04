@@ -57,7 +57,7 @@ def run_migrations_online() -> None:
     from sqlalchemy import create_engine
     import os
 
-    DATABASE_URL = os.getenv("DATABASE_URL_SYNC")
+    DATABASE_URL = os.getenv("DATABASE_URL").replace("ssl=require", "sslmode=require")
 
     connectable = create_engine(DATABASE_URL)
 

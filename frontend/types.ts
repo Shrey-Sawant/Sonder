@@ -35,5 +35,7 @@ export enum ViewState {
   COMPANION = 'companion', // AI Chat
   SANCTUARY = 'sanctuary', // Resources
   CONNECT = 'connect', // Counseling/Peer
-  INSIGHT = 'insight' // Admin
+  INSIGHT = 'insight', // Admin
+  JOURNAL = 'journal', // Mood Journal
+  EXERCISES = 'exercises' // Exercises
 }

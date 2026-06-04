@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, MessageCircleHeart, Library, Users, BarChart3, LifeBuoy } from 'lucide-react';
+import { Home, MessageCircleHeart, Library, Users, BarChart3, LifeBuoy, PenTool, Activity } from 'lucide-react';
 import { ViewState } from '../../types';
 
 interface NavigationProps {
@@ -13,6 +13,8 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView }) => {
   const { user } = useAuth();
   const navItems = [
     { id: ViewState.DASHBOARD, icon: Home, label: 'Home' },
+    { id: ViewState.JOURNAL, icon: PenTool, label: 'Journal' },
+    { id: ViewState.EXERCISES, icon: Activity, label: 'Exercises' },
     { id: ViewState.COMPANION, icon: MessageCircleHeart, label: 'Companion' },
     { id: ViewState.SANCTUARY, icon: Library, label: 'Sanctuary' },
     { id: ViewState.CONNECT, icon: Users, label: 'Connect' },

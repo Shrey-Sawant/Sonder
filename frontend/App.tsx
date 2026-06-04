@@ -7,6 +7,8 @@ import Companion from './src/pages/Companion';
 import Sanctuary from './src/pages/Sanctuary';
 import Connect from './src/pages/Connect';
 import Insight from './src/pages/Insight';
+import Journal from './src/pages/Journal';
+import Exercises from './src/pages/Exercises';
 import Auth from './src/pages/Auth';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 
@@ -57,6 +59,8 @@ const AppContent: React.FC = () => {
                   <Route path="sanctuary" element={<Sanctuary />} />
                   <Route path="connect" element={<Connect />} />
                   <Route path="insight" element={<Insight />} />
+                  <Route path="journal" element={<Journal />} />
+                  <Route path="exercises" element={<Exercises />} />
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
               </div>
