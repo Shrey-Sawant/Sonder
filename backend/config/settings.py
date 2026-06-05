@@ -24,4 +24,7 @@ class Settings:
     MAIL_PORT = int(os.getenv("SMTP_PORT", 587))
     MAIL_SERVER = os.getenv("SMTP_HOST", "smtp.gmail.com")
 
+    # Redis
+    REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
 settings = Settings()
