@@ -11,8 +11,11 @@ from utils.email import send_verification_email
 import random
 import string
 import json
+import logging
 import redis
 from jose import JWTError, jwt
+
+logger = logging.getLogger(__name__)
 from config.settings import settings
 
 router = APIRouter(tags=["Auth"])
@@ -97,6 +100,9 @@ async def register(
         }
     })
     background_tasks.add_task(send_verification_email, email_str, otp)
+
+    result = send_verification_email(email_str, otp)
+    logger.info(f"Email send result: {result}")
 
     return {"message": "OTP sent to your email. Please verify to complete registration."}
 
