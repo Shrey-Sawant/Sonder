@@ -20,6 +20,7 @@ dependencies = [
     "python-dotenv>=1.2.1",
     "python-jose>=3.5.0",
     "pywebpush>=2.3.0",
+    "redis>=8.0.0",
     "slowapi>=0.1.9",
     "sqlalchemy>=2.0.45",
     "textblob>=0.20.0",
