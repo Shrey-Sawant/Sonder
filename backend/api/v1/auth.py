@@ -21,21 +21,49 @@ from config.settings import settings
 router = APIRouter(tags=["Auth"])
 
 # Redis client
-redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+try:
+    redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+    redis_client.ping()  # fail fast at startup if Redis is unreachable
+    logger.info("Redis connected successfully")
+except Exception as e:
+    logger.error(f"Redis connection failed: {e}")
+    redis_client = None
 
 
 # =========================
 # REDIS HELPERS
 # =========================
+def _require_redis():
+    if redis_client is None:
+        raise HTTPException(
+            status_code=503,
+            detail="OTP service is temporarily unavailable. Please try again later."
+        )
+
 def store_otp(email: str, data: dict, ttl_seconds: int = 300):
-    redis_client.setex(f"otp:{email}", ttl_seconds, json.dumps(data))
+    _require_redis()
+    try:
+        redis_client.setex(f"otp:{email}", ttl_seconds, json.dumps(data))
+    except Exception as e:
+        logger.error(f"Redis store_otp failed: {e}")
+        raise HTTPException(status_code=503, detail="OTP service unavailable. Please try again.")
 
 def get_otp(email: str) -> dict | None:
-    val = redis_client.get(f"otp:{email}")
-    return json.loads(val) if val else None
+    _require_redis()
+    try:
+        val = redis_client.get(f"otp:{email}")
+        return json.loads(val) if val else None
+    except Exception as e:
+        logger.error(f"Redis get_otp failed: {e}")
+        raise HTTPException(status_code=503, detail="OTP service unavailable. Please try again.")
 
 def delete_otp(email: str):
-    redis_client.delete(f"otp:{email}")
+    if redis_client is None:
+        return  # best-effort cleanup
+    try:
+        redis_client.delete(f"otp:{email}")
+    except Exception as e:
+        logger.warning(f"Redis delete_otp failed: {e}")
 
 
 # =========================
