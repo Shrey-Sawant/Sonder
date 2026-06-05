@@ -15,26 +15,26 @@ from config.settings import settings
 
 router = APIRouter(tags=["Auth"])
 
-# In-memory OTP store (email: {otp, expires_at})
+# In-memory OTP store (email: {otp, expires_at, user_data})
 otp_store: dict[str, dict] = {}
 
 
 # =========================
 # REGISTER
 # =========================
-@router.post("/register", response_model=UserResponse, status_code=201)
+@router.post("/register", status_code=201)
 async def register(
     user: UserCreate,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
-    # ✅ Validate password length (bcrypt has 72 byte limit)
+    # Validate password length (bcrypt has 72 byte limit)
     if len(user.password.encode('utf-8')) > 72:
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail="Password is too long. Maximum 72 characters allowed."
         )
-    
+
     if len(user.password) < 8:
         raise HTTPException(
             status_code=400,
@@ -54,41 +54,48 @@ async def register(
     # Hash password
     try:
         hashed_password = get_password_hash(user.password)
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=400,
             detail="Password processing error. Please use a simpler password."
         )
 
-    # Auto-verify students & admins
-    is_verified = user.role in {"student", "admin"}
+    # Students & admins — save immediately, no OTP needed
+    if user.role in {"student", "admin"}:
+        new_user = User(
+            email=user.email,
+            username=user.username,
+            password=hashed_password,
+            role=user.role,
+            phone=user.phone,
+            experience=user.experience,
+            certification=user.certification,
+            is_verified=True,
+        )
+        db.add(new_user)
+        await db.commit()
+        await db.refresh(new_user)
+        return new_user
 
-    new_user = User(
-        email=user.email,
-        username=user.username,
-        password=hashed_password,
-        role=user.role,
-        phone=user.phone,
-        experience=user.experience,
-        certification=user.certification,
-        is_verified=is_verified,
-    )
-
-    db.add(new_user)
-    await db.commit()
-    await db.refresh(new_user)
-
-    # Counsellor email verification
-    if user.role == "counsellor":
-        otp = "".join(random.choices(string.digits, k=6))
-        email_str = str(user.email)
-        otp_store[email_str] = {
-            "otp": otp,
-            "expires_at": datetime.utcnow() + timedelta(minutes=5)
+    # Counsellors — hold user data in memory until OTP is verified
+    otp = "".join(random.choices(string.digits, k=6))
+    email_str = str(user.email)
+    otp_store[email_str] = {
+        "otp": otp,
+        "expires_at": datetime.utcnow() + timedelta(minutes=5),
+        "user_data": {
+            "email": user.email,
+            "username": user.username,
+            "password": hashed_password,
+            "role": user.role,
+            "phone": user.phone,
+            "experience": user.experience,
+            "certification": user.certification,
         }
-        background_tasks.add_task(send_verification_email, email_str, otp)
+    }
+    background_tasks.add_task(send_verification_email, email_str, otp)
 
-    return new_user
+    return {"message": "OTP sent to your email. Please verify to complete registration."}
 
 
 # =========================
@@ -101,26 +108,35 @@ async def verify_email(data: VerifyEmail, db: AsyncSession = Depends(get_db)):
 
     if not otp_entry:
         raise HTTPException(status_code=400, detail="OTP not found. Request a new one.")
-    
+
+    # Check expiry first and clean up
+    if datetime.utcnow() > otp_entry["expires_at"]:
+        otp_store.pop(email_str, None)
+        raise HTTPException(status_code=400, detail="OTP expired. Request a new one.")
+
     if otp_entry["otp"] != data.otp:
         raise HTTPException(status_code=400, detail="Invalid OTP")
 
-    if datetime.utcnow() > otp_entry["expires_at"]:
-        raise HTTPException(status_code=400, detail="OTP expired. Request a new one.")
-
-    # Mark user as verifiedx
-    result = await db.execute(select(User).where(User.email == data.email))
-    user = result.scalars().first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    user.is_verified = True
+    # OTP valid — now create the user in DB
+    user_data = otp_entry["user_data"]
+    new_user = User(
+        email=user_data["email"],
+        username=user_data["username"],
+        password=user_data["password"],
+        role=user_data["role"],
+        phone=user_data["phone"],
+        experience=user_data["experience"],
+        certification=user_data["certification"],
+        is_verified=True,
+    )
+    db.add(new_user)
     await db.commit()
+    await db.refresh(new_user)
 
-    # Remove OTP after verification
+    # Clean up OTP store
     otp_store.pop(email_str, None)
 
-    return {"message": "Email verified successfully"}
+    return {"message": "Email verified successfully. Registration complete."}
 
 
 # =========================
@@ -130,19 +146,22 @@ async def verify_email(data: VerifyEmail, db: AsyncSession = Depends(get_db)):
 async def resend_otp(
     email: str,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(User).where(User.email == email))
-    user = result.scalars().first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    if user.is_verified:
-        raise HTTPException(status_code=400, detail="User already verified")
+    otp_entry = otp_store.get(email)
 
+    # User data must exist in store (registration was initiated)
+    if not otp_entry or "user_data" not in otp_entry:
+        raise HTTPException(
+            status_code=404,
+            detail="No pending registration found for this email. Please register first."
+        )
+
+    # Refresh OTP, preserve existing user_data
     otp = "".join(random.choices(string.digits, k=6))
     otp_store[email] = {
+        **otp_entry,
         "otp": otp,
-        "expires_at": datetime.utcnow() + timedelta(minutes=5)
+        "expires_at": datetime.utcnow() + timedelta(minutes=5),
     }
     background_tasks.add_task(send_verification_email, email, otp)
 
@@ -187,7 +206,7 @@ async def login(user_data: UserLogin, db: AsyncSession = Depends(get_db)):
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme), 
+    token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ) -> User:
     credentials_exception = HTTPException(
@@ -202,7 +221,7 @@ async def get_current_user(
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-        
+
     result = await db.execute(select(User).where(User.email == user_email))
     user = result.scalars().first()
     if user is None:
