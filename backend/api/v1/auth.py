@@ -22,11 +22,16 @@ router = APIRouter(tags=["Auth"])
 
 # Redis client
 try:
-    redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
-    redis_client.ping()  # fail fast at startup if Redis is unreachable
+    redis_client = redis.from_url(
+        settings.REDIS_URL,
+        decode_responses=True,
+        socket_connect_timeout=3,  # fail fast if host is unreachable
+        socket_timeout=3,
+    )
+    redis_client.ping()
     logger.info("Redis connected successfully")
 except Exception as e:
-    logger.error(f"Redis connection failed: {e}")
+    logger.error(f"Redis connection failed (OTP service disabled): {e}")
     redis_client = None
 
 
