@@ -93,6 +93,7 @@ async def register(
             "certification": user.certification,
         }
     }
+    send_verification_email(email_str, otp)
     background_tasks.add_task(send_verification_email, email_str, otp)
 
     return {"message": "OTP sent to your email. Please verify to complete registration."}
@@ -138,7 +139,18 @@ async def verify_email(data: VerifyEmail, db: AsyncSession = Depends(get_db)):
 
     return {"message": "Email verified successfully. Registration complete."}
 
+def send_email(to_email: str, subject: str, body: str) -> bool:
+    print(f"DEBUG — MAIL_FROM: {settings.MAIL_FROM}")
+    print(f"DEBUG — MAIL_SERVER: {settings.MAIL_SERVER}")
+    print(f"DEBUG — MAIL_PORT: {settings.MAIL_PORT}")
+    print(f"DEBUG — MAIL_USERNAME: {settings.MAIL_USERNAME}")
+    print(f"DEBUG — MAIL_PASSWORD set: {bool(settings.MAIL_PASSWORD)}")
+    print(f"DEBUG — Sending to: {to_email}")
 
+    if not all([settings.MAIL_FROM, settings.MAIL_SERVER, settings.MAIL_PORT, settings.MAIL_USERNAME, settings.MAIL_PASSWORD]):
+        print("DEBUG — One or more mail settings are missing!")
+        return False
+    ...
 # =========================
 # RESEND OTP
 # =========================
