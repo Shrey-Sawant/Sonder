@@ -108,7 +108,7 @@ async def verify_email(data: VerifyEmail, db: AsyncSession = Depends(get_db)):
     if datetime.utcnow() > otp_entry["expires_at"]:
         raise HTTPException(status_code=400, detail="OTP expired. Request a new one.")
 
-    # Mark user as verified
+    # Mark user as verifiedx
     result = await db.execute(select(User).where(User.email == data.email))
     user = result.scalars().first()
     if not user:
@@ -207,4 +207,4 @@ async def get_current_user(
     user = result.scalars().first()
     if user is None:
         raise credentials_exception
-    return user
+    return user
