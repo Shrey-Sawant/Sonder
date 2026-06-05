@@ -7,7 +7,6 @@ from db.session import get_db
 from models.user import User
 from schemas.user import UserCreate, UserLogin, UserResponse, Token, VerifyEmail
 from core.security import get_password_hash, verify_password, create_access_token
-from utils.email import send_verification_email
 import random
 import string
 import json
