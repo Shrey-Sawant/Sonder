@@ -10,13 +10,29 @@ from core.security import get_password_hash, verify_password, create_access_toke
 from utils.email import send_verification_email
 import random
 import string
+import json
+import redis
 from jose import JWTError, jwt
 from config.settings import settings
 
 router = APIRouter(tags=["Auth"])
 
-# In-memory OTP store (email: {otp, expires_at, user_data})
-otp_store: dict[str, dict] = {}
+# Redis client
+redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+
+
+# =========================
+# REDIS HELPERS
+# =========================
+def store_otp(email: str, data: dict, ttl_seconds: int = 300):
+    redis_client.setex(f"otp:{email}", ttl_seconds, json.dumps(data))
+
+def get_otp(email: str) -> dict | None:
+    val = redis_client.get(f"otp:{email}")
+    return json.loads(val) if val else None
+
+def delete_otp(email: str):
+    redis_client.delete(f"otp:{email}")
 
 
 # =========================
@@ -28,37 +44,24 @@ async def register(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
-    # Validate password length (bcrypt has 72 byte limit)
     if len(user.password.encode('utf-8')) > 72:
-        raise HTTPException(
-            status_code=400,
-            detail="Password is too long. Maximum 72 characters allowed."
-        )
+        raise HTTPException(status_code=400, detail="Password is too long. Maximum 72 characters allowed.")
 
     if len(user.password) < 8:
-        raise HTTPException(
-            status_code=400,
-            detail="Password must be at least 8 characters long."
-        )
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long.")
 
-    # Check email
     result = await db.execute(select(User).where(User.email == user.email))
     if result.scalars().first():
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    # Check username
     result = await db.execute(select(User).where(User.username == user.username))
     if result.scalars().first():
         raise HTTPException(status_code=400, detail="Username already taken")
 
-    # Hash password
     try:
         hashed_password = get_password_hash(user.password)
     except Exception:
-        raise HTTPException(
-            status_code=400,
-            detail="Password processing error. Please use a simpler password."
-        )
+        raise HTTPException(status_code=400, detail="Password processing error. Please use a simpler password.")
 
     # Students & admins — save immediately, no OTP needed
     if user.role in {"student", "admin"}:
@@ -77,14 +80,14 @@ async def register(
         await db.refresh(new_user)
         return new_user
 
-    # Counsellors — hold user data in memory until OTP is verified
+    # Counsellors — store in Redis until OTP verified
     otp = "".join(random.choices(string.digits, k=6))
     email_str = str(user.email)
-    otp_store[email_str] = {
+    store_otp(email_str, {
         "otp": otp,
-        "expires_at": datetime.utcnow() + timedelta(minutes=5),
+        "expires_at": (datetime.utcnow() + timedelta(minutes=5)).isoformat(),
         "user_data": {
-            "email": user.email,
+            "email": str(user.email),
             "username": user.username,
             "password": hashed_password,
             "role": user.role,
@@ -92,8 +95,7 @@ async def register(
             "experience": user.experience,
             "certification": user.certification,
         }
-    }
-    send_verification_email(email_str, otp)
+    })
     background_tasks.add_task(send_verification_email, email_str, otp)
 
     return {"message": "OTP sent to your email. Please verify to complete registration."}
@@ -105,20 +107,18 @@ async def register(
 @router.post("/verify-email")
 async def verify_email(data: VerifyEmail, db: AsyncSession = Depends(get_db)):
     email_str = str(data.email)
-    otp_entry = otp_store.get(email_str)
+    otp_entry = get_otp(email_str)
 
     if not otp_entry:
         raise HTTPException(status_code=400, detail="OTP not found. Request a new one.")
 
-    # Check expiry first and clean up
-    if datetime.utcnow() > otp_entry["expires_at"]:
-        otp_store.pop(email_str, None)
+    if datetime.utcnow() > datetime.fromisoformat(otp_entry["expires_at"]):
+        delete_otp(email_str)
         raise HTTPException(status_code=400, detail="OTP expired. Request a new one.")
 
     if otp_entry["otp"] != data.otp:
         raise HTTPException(status_code=400, detail="Invalid OTP")
 
-    # OTP valid — now create the user in DB
     user_data = otp_entry["user_data"]
     new_user = User(
         email=user_data["email"],
@@ -134,23 +134,11 @@ async def verify_email(data: VerifyEmail, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(new_user)
 
-    # Clean up OTP store
-    otp_store.pop(email_str, None)
+    delete_otp(email_str)
 
     return {"message": "Email verified successfully. Registration complete."}
 
-def send_email(to_email: str, subject: str, body: str) -> bool:
-    print(f"DEBUG — MAIL_FROM: {settings.MAIL_FROM}")
-    print(f"DEBUG — MAIL_SERVER: {settings.MAIL_SERVER}")
-    print(f"DEBUG — MAIL_PORT: {settings.MAIL_PORT}")
-    print(f"DEBUG — MAIL_USERNAME: {settings.MAIL_USERNAME}")
-    print(f"DEBUG — MAIL_PASSWORD set: {bool(settings.MAIL_PASSWORD)}")
-    print(f"DEBUG — Sending to: {to_email}")
 
-    if not all([settings.MAIL_FROM, settings.MAIL_SERVER, settings.MAIL_PORT, settings.MAIL_USERNAME, settings.MAIL_PASSWORD]):
-        print("DEBUG — One or more mail settings are missing!")
-        return False
-    ...
 # =========================
 # RESEND OTP
 # =========================
@@ -159,22 +147,20 @@ async def resend_otp(
     email: str,
     background_tasks: BackgroundTasks,
 ):
-    otp_entry = otp_store.get(email)
+    otp_entry = get_otp(email)
 
-    # User data must exist in store (registration was initiated)
     if not otp_entry or "user_data" not in otp_entry:
         raise HTTPException(
             status_code=404,
             detail="No pending registration found for this email. Please register first."
         )
 
-    # Refresh OTP, preserve existing user_data
     otp = "".join(random.choices(string.digits, k=6))
-    otp_store[email] = {
+    store_otp(email, {
         **otp_entry,
         "otp": otp,
-        "expires_at": datetime.utcnow() + timedelta(minutes=5),
-    }
+        "expires_at": (datetime.utcnow() + timedelta(minutes=5)).isoformat(),
+    })
     background_tasks.add_task(send_verification_email, email, otp)
 
     return {"message": "OTP resent successfully"}
