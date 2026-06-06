@@ -1,4 +1,6 @@
-import resend
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from config.settings import settings
 import logging
 
@@ -7,8 +9,8 @@ logger.setLevel(logging.INFO)
 
 
 def send_email(to_email: str, subject: str, body: str) -> bool:
-    if not settings.RESEND_API_KEY:
-        logger.error("=== RESEND_API_KEY is missing ===")
+    if not all([settings.MAIL_FROM, settings.MAIL_SERVER, settings.MAIL_USERNAME, settings.MAIL_PASSWORD]):
+        logger.error("=== MISSING MAIL SETTINGS — EMAIL NOT SENT ===")
         return False
 
     if not to_email:
@@ -16,14 +18,19 @@ def send_email(to_email: str, subject: str, body: str) -> bool:
         return False
 
     try:
-        resend.api_key = settings.RESEND_API_KEY
-        r = resend.Emails.send({
-            "from": "onboarding@resend.dev",
-            "to": to_email,
-            "subject": subject or "No Subject",
-            "html": body or ""
-        })
-        logger.info(f"=== EMAIL SENT SUCCESSFULLY TO {to_email}: {r} ===")
+        msg = MIMEMultipart()
+        msg["From"] = settings.MAIL_FROM
+        msg["To"] = to_email
+        msg["Subject"] = subject or "No Subject"
+        msg.attach(MIMEText(body or "", "html"))
+
+        logger.info(f"Connecting to SMTP SSL {settings.MAIL_SERVER}:465...")
+        server = smtplib.SMTP_SSL(settings.MAIL_SERVER, 465)
+        server.login(settings.MAIL_USERNAME, settings.MAIL_PASSWORD)
+        logger.info("Login successful, sending email...")
+        server.sendmail(settings.MAIL_FROM, to_email, msg.as_string())
+        server.quit()
+        logger.info(f"=== EMAIL SENT SUCCESSFULLY TO {to_email} ===")
         return True
     except Exception as e:
         logger.exception(f"=== EMAIL FAILED: {e} ===")
