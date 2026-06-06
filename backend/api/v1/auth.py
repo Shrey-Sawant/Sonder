@@ -144,11 +144,7 @@ async def register(
     })
 
     # ONLY send via background task (NO duplicate call)
-    background_tasks.add_task(
-        send_verification_email,
-        email_str,
-        otp
-    )
+    send_verification_email(email_str, otp)
 
     logger.info(f"OTP sent to {email_str}")
 
