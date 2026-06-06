@@ -73,3 +73,4 @@ yarl==1.22.0
 zstandard==0.25.0
 slowapi
 redis==5.0.1
+resend

@@ -27,4 +27,7 @@ class Settings:
     # Redis
     REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
+    # Resend
+    RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+
 settings = Settings()

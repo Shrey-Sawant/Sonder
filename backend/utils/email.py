@@ -1,6 +1,4 @@
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import resend
 from config.settings import settings
 import logging
 
@@ -9,16 +7,8 @@ logger.setLevel(logging.INFO)
 
 
 def send_email(to_email: str, subject: str, body: str) -> bool:
-    logger.info(f"=== SEND EMAIL CALLED ===")
-    logger.info(f"TO: {to_email}")
-    logger.info(f"MAIL_FROM: {settings.MAIL_FROM}")
-    logger.info(f"MAIL_SERVER: {settings.MAIL_SERVER}")
-    logger.info(f"MAIL_PORT: {settings.MAIL_PORT}")
-    logger.info(f"MAIL_USERNAME: {settings.MAIL_USERNAME}")
-    logger.info(f"MAIL_PASSWORD set: {bool(settings.MAIL_PASSWORD)}")
-
-    if not all([settings.MAIL_FROM, settings.MAIL_SERVER, settings.MAIL_PORT, settings.MAIL_USERNAME, settings.MAIL_PASSWORD]):
-        logger.error("=== MISSING MAIL SETTINGS — EMAIL NOT SENT ===")
+    if not settings.RESEND_API_KEY:
+        logger.error("=== RESEND_API_KEY is missing ===")
         return False
 
     if not to_email:
@@ -26,21 +16,14 @@ def send_email(to_email: str, subject: str, body: str) -> bool:
         return False
 
     try:
-        msg = MIMEMultipart()
-        msg["From"] = settings.MAIL_FROM
-        msg["To"] = to_email
-        msg["Subject"] = subject or "No Subject"
-        msg.attach(MIMEText(body or "", "html"))
-
-        logger.info(f"Connecting to SMTP server {settings.MAIL_SERVER}:{settings.MAIL_PORT}...")
-        server = smtplib.SMTP(settings.MAIL_SERVER, settings.MAIL_PORT)
-        server.starttls()
-        logger.info("STARTTLS successful, logging in...")
-        server.login(settings.MAIL_USERNAME, settings.MAIL_PASSWORD)
-        logger.info("Login successful, sending email...")
-        server.sendmail(settings.MAIL_FROM, to_email, msg.as_string())
-        server.quit()
-        logger.info(f"=== EMAIL SENT SUCCESSFULLY TO {to_email} ===")
+        resend.api_key = settings.RESEND_API_KEY
+        r = resend.Emails.send({
+            "from": "onboarding@resend.dev",
+            "to": to_email,
+            "subject": subject or "No Subject",
+            "html": body or ""
+        })
+        logger.info(f"=== EMAIL SENT SUCCESSFULLY TO {to_email}: {r} ===")
         return True
     except Exception as e:
         logger.exception(f"=== EMAIL FAILED: {e} ===")
