@@ -1,56 +1,67 @@
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from config.settings import settings
+import resend
 import logging
 
+from config.settings import settings
+
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+
+resend.api_key = settings.RESEND_API_KEY
 
 
-def send_email(to_email: str, subject: str, body: str) -> bool:
-    if not all([settings.MAIL_FROM, settings.MAIL_SERVER, settings.MAIL_USERNAME, settings.MAIL_PASSWORD]):
-        logger.error("=== MISSING MAIL SETTINGS — EMAIL NOT SENT ===")
-        return False
-
-    if not to_email:
-        logger.error("=== RECIPIENT EMAIL IS EMPTY ===")
-        return False
-
+def send_email(
+    to_email: str,
+    subject: str,
+    body: str,
+) -> bool:
     try:
-        msg = MIMEMultipart()
-        msg["From"] = settings.MAIL_FROM
-        msg["To"] = to_email
-        msg["Subject"] = subject or "No Subject"
-        msg.attach(MIMEText(body or "", "html"))
+        params = {
+            "from": "onboarding@resend.dev",
+            "to": [to_email],
+            "subject": subject,
+            "html": body,
+        }
 
-        logger.info(f"Connecting to SMTP SSL {settings.MAIL_SERVER}:465...")
-        server = smtplib.SMTP_SSL(settings.MAIL_SERVER, 465)
-        server.login(settings.MAIL_USERNAME, settings.MAIL_PASSWORD)
-        logger.info("Login successful, sending email...")
-        server.sendmail(settings.MAIL_FROM, to_email, msg.as_string())
-        server.quit()
-        logger.info(f"=== EMAIL SENT SUCCESSFULLY TO {to_email} ===")
+        resend.Emails.send(params)
+
+        logger.info(f"Email sent successfully to {to_email}")
+
         return True
+
     except Exception as e:
-        logger.exception(f"=== EMAIL FAILED: {e} ===")
+        logger.exception(f"Email sending failed: {e}")
         return False
 
 
-def send_verification_email(to_email: str, otp: str) -> bool:
-    if not otp:
-        logger.error("OTP is None or empty. Cannot send verification email.")
-        return False
-
+def send_verification_email(
+    to_email: str,
+    otp: str,
+) -> bool:
     subject = "Verify your Sonder Account"
+
     body = f"""
     <html>
         <body>
             <h2>Welcome to Sonder!</h2>
-            <p>Please use the following OTP to verify your account:</p>
+
+            <p>
+                Please use the following OTP to verify your account:
+            </p>
+
             <h1>{otp}</h1>
-            <p>If you did not request this, please ignore this email.</p>
+
+            <p>
+                This OTP will expire in 5 minutes.
+            </p>
+
+            <p>
+                If you did not request this email, please ignore it.
+            </p>
         </body>
     </html>
     """
-    return send_email(to_email, subject, body)
+
+    return send_email(
+        to_email=to_email,
+        subject=subject,
+        body=body,
+    )

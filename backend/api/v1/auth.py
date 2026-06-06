@@ -5,7 +5,7 @@ from sqlalchemy import select
 from datetime import datetime, timedelta
 from db.session import get_db
 from models.user import User
-from schemas.user import UserCreate, UserLogin, UserResponse, Token, VerifyEmail
+from schemas.user import UserCreate, UserLogin, Token, VerifyEmail
 from core.security import get_password_hash, verify_password, create_access_token
 from utils.email import send_verification_email
 import random
@@ -20,18 +20,20 @@ from config.settings import settings
 
 router = APIRouter(tags=["Auth"])
 
-# Redis client
+# =========================
+# REDIS INIT
+# =========================
 try:
     redis_client = redis.from_url(
         settings.REDIS_URL,
         decode_responses=True,
-        socket_connect_timeout=3,  # fail fast if host is unreachable
+        socket_connect_timeout=3,
         socket_timeout=3,
     )
     redis_client.ping()
     logger.info("Redis connected successfully")
 except Exception as e:
-    logger.error(f"Redis connection failed (OTP service disabled): {e}")
+    logger.error(f"Redis connection failed (OTP disabled): {e}")
     redis_client = None
 
 
@@ -42,33 +44,39 @@ def _require_redis():
     if redis_client is None:
         raise HTTPException(
             status_code=503,
-            detail="OTP service is temporarily unavailable. Please try again later."
+            detail="OTP service is temporarily unavailable"
         )
+
 
 def store_otp(email: str, data: dict, ttl_seconds: int = 300):
     _require_redis()
     try:
-        redis_client.setex(f"otp:{email}", ttl_seconds, json.dumps(data))
+        redis_client.setex(
+            f"otp:{email}",
+            ttl_seconds,
+            json.dumps(data)
+        )
     except Exception as e:
-        logger.error(f"Redis store_otp failed: {e}")
-        raise HTTPException(status_code=503, detail="OTP service unavailable. Please try again.")
+        logger.error(f"Redis store failed: {e}")
+        raise HTTPException(status_code=503, detail="OTP service unavailable")
 
-def get_otp(email: str) -> dict | None:
+
+def get_otp(email: str):
     _require_redis()
     try:
         val = redis_client.get(f"otp:{email}")
         return json.loads(val) if val else None
     except Exception as e:
-        logger.error(f"Redis get_otp failed: {e}")
-        raise HTTPException(status_code=503, detail="OTP service unavailable. Please try again.")
+        logger.error(f"Redis get failed: {e}")
+        raise HTTPException(status_code=503, detail="OTP service unavailable")
+
 
 def delete_otp(email: str):
-    if redis_client is None:
-        return  # best-effort cleanup
-    try:
-        redis_client.delete(f"otp:{email}")
-    except Exception as e:
-        logger.warning(f"Redis delete_otp failed: {e}")
+    if redis_client:
+        try:
+            redis_client.delete(f"otp:{email}")
+        except Exception as e:
+            logger.warning(f"Redis delete failed: {e}")
 
 
 # =========================
@@ -80,26 +88,25 @@ async def register(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
-    if len(user.password.encode('utf-8')) > 72:
-        raise HTTPException(status_code=400, detail="Password is too long. Maximum 72 characters allowed.")
+    if len(user.password.encode("utf-8")) > 72:
+        raise HTTPException(status_code=400, detail="Password too long (max 72 chars)")
 
     if len(user.password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long.")
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
+    # check email
     result = await db.execute(select(User).where(User.email == user.email))
     if result.scalars().first():
         raise HTTPException(status_code=400, detail="Email already registered")
 
+    # check username
     result = await db.execute(select(User).where(User.username == user.username))
     if result.scalars().first():
         raise HTTPException(status_code=400, detail="Username already taken")
 
-    try:
-        hashed_password = get_password_hash(user.password)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Password processing error. Please use a simpler password.")
+    hashed_password = get_password_hash(user.password)
 
-    # Students & admins — save immediately, no OTP needed
+    # Direct registration (no OTP)
     if user.role in {"student", "admin"}:
         new_user = User(
             email=user.email,
@@ -116,14 +123,17 @@ async def register(
         await db.refresh(new_user)
         return new_user
 
-    # Counsellors — store in Redis until OTP verified
+    # OTP flow (counsellor)
     otp = "".join(random.choices(string.digits, k=6))
     email_str = str(user.email)
+
     store_otp(email_str, {
         "otp": otp,
-        "expires_at": (datetime.utcnow() + timedelta(minutes=5)).isoformat(),
+        "expires_at": (
+            datetime.utcnow() + timedelta(minutes=5)
+        ).isoformat(),
         "user_data": {
-            "email": str(user.email),
+            "email": email_str,
             "username": user.username,
             "password": hashed_password,
             "role": user.role,
@@ -132,33 +142,42 @@ async def register(
             "certification": user.certification,
         }
     })
-    background_tasks.add_task(send_verification_email, email_str, otp)
 
-    result = send_verification_email(email_str, otp)
-    logger.info(f"Email send result: {result}")
+    # ONLY send via background task (NO duplicate call)
+    background_tasks.add_task(
+        send_verification_email,
+        email_str,
+        otp
+    )
 
-    return {"message": "OTP sent to your email. Please verify to complete registration."}
+    logger.info(f"OTP sent to {email_str}")
+
+    return {"message": "OTP sent to email. Please verify to complete registration."}
 
 
 # =========================
 # VERIFY EMAIL
 # =========================
 @router.post("/verify-email")
-async def verify_email(data: VerifyEmail, db: AsyncSession = Depends(get_db)):
-    email_str = str(data.email)
-    otp_entry = get_otp(email_str)
+async def verify_email(
+    data: VerifyEmail,
+    db: AsyncSession = Depends(get_db)
+):
+    email = str(data.email)
+    otp_entry = get_otp(email)
 
     if not otp_entry:
-        raise HTTPException(status_code=400, detail="OTP not found. Request a new one.")
+        raise HTTPException(status_code=400, detail="OTP not found")
 
     if datetime.utcnow() > datetime.fromisoformat(otp_entry["expires_at"]):
-        delete_otp(email_str)
-        raise HTTPException(status_code=400, detail="OTP expired. Request a new one.")
+        delete_otp(email)
+        raise HTTPException(status_code=400, detail="OTP expired")
 
     if otp_entry["otp"] != data.otp:
         raise HTTPException(status_code=400, detail="Invalid OTP")
 
     user_data = otp_entry["user_data"]
+
     new_user = User(
         email=user_data["email"],
         username=user_data["username"],
@@ -169,13 +188,14 @@ async def verify_email(data: VerifyEmail, db: AsyncSession = Depends(get_db)):
         certification=user_data["certification"],
         is_verified=True,
     )
+
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)
 
-    delete_otp(email_str)
+    delete_otp(email)
 
-    return {"message": "Email verified successfully. Registration complete."}
+    return {"message": "Email verified successfully"}
 
 
 # =========================
@@ -188,19 +208,24 @@ async def resend_otp(
 ):
     otp_entry = get_otp(email)
 
-    if not otp_entry or "user_data" not in otp_entry:
-        raise HTTPException(
-            status_code=404,
-            detail="No pending registration found for this email. Please register first."
-        )
+    if not otp_entry:
+        raise HTTPException(status_code=404, detail="No pending OTP found")
 
     otp = "".join(random.choices(string.digits, k=6))
+
     store_otp(email, {
         **otp_entry,
         "otp": otp,
-        "expires_at": (datetime.utcnow() + timedelta(minutes=5)).isoformat(),
+        "expires_at": (
+            datetime.utcnow() + timedelta(minutes=5)
+        ).isoformat(),
     })
-    background_tasks.add_task(send_verification_email, email, otp)
+
+    background_tasks.add_task(
+        send_verification_email,
+        email,
+        otp
+    )
 
     return {"message": "OTP resent successfully"}
 
@@ -209,8 +234,14 @@ async def resend_otp(
 # LOGIN
 # =========================
 @router.post("/login", response_model=Token)
-async def login(user_data: UserLogin, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == user_data.email))
+async def login(
+    user_data: UserLogin,
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(User).where(User.email == user_data.email)
+    )
+
     user = result.scalars().first()
 
     if not user or not verify_password(user_data.password, user.password):
@@ -223,13 +254,15 @@ async def login(user_data: UserLogin, db: AsyncSession = Depends(get_db)):
     if not user.is_verified:
         raise HTTPException(
             status_code=403,
-            detail="Email not verified. Please verify your email first.",
+            detail="Email not verified",
         )
 
-    access_token = create_access_token(data={"sub": user.email, "role": user.role})
+    token = create_access_token(
+        data={"sub": user.email, "role": user.role}
+    )
 
     return {
-        "access_token": access_token,
+        "access_token": token,
         "token_type": "bearer",
         "role": user.role,
         "username": user.username,
@@ -238,29 +271,45 @@ async def login(user_data: UserLogin, db: AsyncSession = Depends(get_db)):
 
 
 # =========================
-# GET CURRENT USER DEPENDENCY
+# CURRENT USER
 # =========================
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl="/api/v1/auth/login"
+)
+
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ) -> User:
+
     credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+        status_code=401,
+        detail="Invalid authentication",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        user_email: str = payload.get("sub")
-        if user_email is None:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+        )
+
+        email = payload.get("sub")
+        if not email:
             raise credentials_exception
+
     except JWTError:
         raise credentials_exception
 
-    result = await db.execute(select(User).where(User.email == user_email))
+    result = await db.execute(
+        select(User).where(User.email == email)
+    )
+
     user = result.scalars().first()
-    if user is None:
+
+    if not user:
         raise credentials_exception
+
     return user
