@@ -1,67 +1,40 @@
-import resend
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 import logging
-
 from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-resend.api_key = settings.RESEND_API_KEY
 
-
-def send_email(
-    to_email: str,
-    subject: str,
-    body: str,
-) -> bool:
+def send_email(to_email: str, subject: str, body: str) -> bool:
     try:
-        params = {
-            "from": "onboarding@resend.dev",
-            "to": [to_email],
-            "subject": subject,
-            "html": body,
-        }
+        msg = MIMEMultipart()
+        msg["From"] = settings.MAIL_FROM
+        msg["To"] = to_email
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "html"))
 
-        resend.Emails.send(params)
+        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
+        server.login(settings.MAIL_USERNAME, settings.MAIL_PASSWORD)
+        server.sendmail(settings.MAIL_FROM, to_email, msg.as_string())
+        server.quit()
 
-        logger.info(f"Email sent successfully to {to_email}")
-
+        logger.info(f"Email sent to {to_email}")
         return True
 
     except Exception as e:
-        logger.exception(f"Email sending failed: {e}")
+        logger.exception(f"Email failed: {e}")
         return False
 
 
-def send_verification_email(
-    to_email: str,
-    otp: str,
-) -> bool:
-    subject = "Verify your Sonder Account"
+def send_verification_email(to_email: str, otp: str) -> bool:
+    subject = "Verify your account"
 
     body = f"""
-    <html>
-        <body>
-            <h2>Welcome to Sonder!</h2>
-
-            <p>
-                Please use the following OTP to verify your account:
-            </p>
-
-            <h1>{otp}</h1>
-
-            <p>
-                This OTP will expire in 5 minutes.
-            </p>
-
-            <p>
-                If you did not request this email, please ignore it.
-            </p>
-        </body>
-    </html>
+    <h2>Your OTP</h2>
+    <h1>{otp}</h1>
+    <p>Valid for 5 minutes</p>
     """
 
-    return send_email(
-        to_email=to_email,
-        subject=subject,
-        body=body,
-    )
+    return send_email(to_email, subject, body)
