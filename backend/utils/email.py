@@ -51,7 +51,15 @@ def send_email(to_email: str, subject: str, template_params: dict) -> bool:
             logger.info(f"Email sent successfully via EmailJS to {to_email}")
             return True
         else:
-            logger.error(f"EmailJS API error: {response.status_code} - {response.text}")
+            error_msg = response.text
+            if response.status_code == 422 and "recipients address is empty" in error_msg.lower():
+                logger.error(
+                    f"EmailJS API error: {response.status_code} - {error_msg}. "
+                    "TIP: Make sure the 'To Email' field in your EmailJS template settings "
+                    "contains a variable that matches one of the passed keys, e.g. {{to_email}} or {{reply_to}}."
+                )
+            else:
+                logger.error(f"EmailJS API error: {response.status_code} - {error_msg}")
             return False
 
     except Exception as e:
@@ -66,9 +74,14 @@ def send_verification_email(to_email: str, otp: str) -> bool:
     subject = "Verify Your Account - OTP Code"
     
     # Setup standard template parameters that are common in EmailJS templates:
-    # to_email, otp, subject, message, and to_name
+    # to_email, reply_to, email, to, otp, subject, message, and to_name.
+    # By including multiple standard recipient keys (like reply_to, which is
+    # the EmailJS default), we minimize the chance of empty recipient errors.
     template_params = {
         "to_email": to_email,
+        "reply_to": to_email,  # EmailJS default recipient variable name
+        "email": to_email,
+        "to": to_email,
         "otp": otp,
         "subject": subject,
         "message": f"Your OTP code is: {otp}. This code is valid for 5 minutes.",
