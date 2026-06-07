@@ -28,11 +28,12 @@ class Settings:
     REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
     # =========================
-    # BREVO (EMAIL SERVICE)
+    # EMAILJS (EMAIL SERVICE)
     # =========================
-    BREVO_API_KEY = os.getenv("BREVO_API_KEY")
-    SENDER_EMAIL = os.getenv("SENDER_EMAIL")
-    SENDER_NAME = os.getenv("SENDER_NAME", "Auth System")
+    EMAILJS_SERVICE_ID = os.getenv("EMAILJS_SERVICE_ID")
+    EMAILJS_TEMPLATE_ID = os.getenv("EMAILJS_TEMPLATE_ID")
+    EMAILJS_PUBLIC_KEY = os.getenv("EMAILJS_PUBLIC_KEY")
+    EMAILJS_PRIVATE_KEY = os.getenv("EMAILJS_PRIVATE_KEY")
 
     # =========================
     # OPTIONAL (REMOVE SMTP COMPLETELY)

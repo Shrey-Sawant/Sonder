@@ -1,51 +1,61 @@
-import sib_api_v3_sdk
-from sib_api_v3_sdk.rest import ApiException
+import requests
 from config.settings import settings
 import logging
 
 logger = logging.getLogger(__name__)
 
 # =========================
-# BREVO CONFIG
+# CORE EMAIL SENDER (EMAILJS)
 # =========================
-configuration = sib_api_v3_sdk.Configuration()
-configuration.api_key["api-key"] = settings.BREVO_API_KEY
-
-api_instance = sib_api_v3_sdk.TransactionalEmailsApi(
-    sib_api_v3_sdk.ApiClient(configuration)
-)
-
-
-# =========================
-# CORE EMAIL SENDER
-# =========================
-def send_email(to_email: str, subject: str, html_content: str) -> bool:
+def send_email(to_email: str, subject: str, template_params: dict) -> bool:
     if not to_email:
         logger.error("Recipient email is missing")
         return False
 
-    try:
-        email = sib_api_v3_sdk.SendSmtpEmail(
-            to=[{"email": to_email}],
-            sender={
-                "email": settings.SENDER_EMAIL,
-                "name": settings.SENDER_NAME or "Auth System"
-            },
-            subject=subject,
-            html_content=html_content
-        )
+    service_id = settings.EMAILJS_SERVICE_ID
+    template_id = settings.EMAILJS_TEMPLATE_ID
+    public_key = settings.EMAILJS_PUBLIC_KEY
+    private_key = settings.EMAILJS_PRIVATE_KEY
 
-        api_instance.send_transac_email(email)
-
-        logger.info(f"Email sent successfully to {to_email}")
-        return True
-
-    except ApiException as e:
-        logger.error(f"Brevo API error: {e}")
+    # Check if configurations are present
+    if not service_id or service_id == "your_service_id_here":
+        logger.error("EmailJS Service ID is not configured.")
+        return False
+    if not template_id or template_id == "your_template_id_here":
+        logger.error("EmailJS Template ID is not configured.")
+        return False
+    if not public_key or public_key == "your_public_key_here":
+        logger.error("EmailJS Public Key is not configured.")
         return False
 
+    payload = {
+        "service_id": service_id,
+        "template_id": template_id,
+        "user_id": public_key,
+        "template_params": template_params
+    }
+
+    # Add private key / access token if set and valid
+    if private_key and private_key != "your_private_key_here":
+        payload["accessToken"] = private_key
+
+    try:
+        response = requests.post(
+            "https://api.emailjs.com/api/v1.0/email/send",
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            logger.info(f"Email sent successfully via EmailJS to {to_email}")
+            return True
+        else:
+            logger.error(f"EmailJS API error: {response.status_code} - {response.text}")
+            return False
+
     except Exception as e:
-        logger.exception(f"Unexpected email error: {e}")
+        logger.exception(f"Unexpected email error during EmailJS send: {e}")
         return False
 
 
@@ -54,27 +64,15 @@ def send_email(to_email: str, subject: str, html_content: str) -> bool:
 # =========================
 def send_verification_email(to_email: str, otp: str) -> bool:
     subject = "Verify Your Account - OTP Code"
+    
+    # Setup standard template parameters that are common in EmailJS templates:
+    # to_email, otp, subject, message, and to_name
+    template_params = {
+        "to_email": to_email,
+        "otp": otp,
+        "subject": subject,
+        "message": f"Your OTP code is: {otp}. This code is valid for 5 minutes.",
+        "to_name": to_email.split('@')[0]
+    }
 
-    html = f"""
-    <html>
-        <body style="font-family: Arial, sans-serif;">
-            <div style="padding: 20px;">
-                <h2>Account Verification</h2>
-                <p>Your OTP code is:</p>
-
-                <h1 style="letter-spacing: 4px; color: #2d89ef;">
-                    {otp}
-                </h1>
-
-                <p>This code is valid for <b>5 minutes</b>.</p>
-
-                <hr>
-                <p style="font-size: 12px; color: gray;">
-                    If you did not request this, ignore this email.
-                </p>
-            </div>
-        </body>
-    </html>
-    """
-
-    return send_email(to_email, subject, html)
+    return send_email(to_email, subject, template_params)

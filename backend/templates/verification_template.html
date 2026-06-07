@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Your Sonder Account</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: #f8fafc;
+      color: #334155;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    .email-container {
+      max-width: 580px;
+      margin: 40px auto;
+      background-color: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      border: 1px solid #e2e8f0;
+      overflow: hidden;
+    }
+    .email-header {
+      background: linear-gradient(135deg, #f97316 0%, #ec4899 100%);
+      padding: 32px 24px;
+      text-align: center;
+    }
+    .logo-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 50px;
+      height: 50px;
+      background-color: rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      color: #ffffff;
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 12px;
+      backdrop-filter: blur(4px);
+    }
+    .email-header h1 {
+      margin: 0;
+      color: #ffffff;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+    }
+    .email-body {
+      padding: 40px 32px;
+    }
+    .welcome-text {
+      font-size: 16px;
+      line-height: 1.6;
+      color: #475569;
+      margin-top: 0;
+      margin-bottom: 24px;
+    }
+    .otp-container {
+      background-color: #fff7ed;
+      border: 1px dashed #fdba74;
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .otp-label {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #ea580c;
+      margin-bottom: 8px;
+    }
+    .otp-code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 36px;
+      font-weight: 700;
+      letter-spacing: 6px;
+      color: #1e293b;
+      margin: 0;
+    }
+    .expiry-text {
+      font-size: 13px;
+      color: #64748b;
+      margin-top: 8px;
+      margin-bottom: 0;
+    }
+    .info-box {
+      background-color: #f1f5f9;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 28px;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #475569;
+    }
+    .email-footer {
+      background-color: #f8fafc;
+      padding: 24px 32px;
+      border-top: 1px solid #f1f5f9;
+      text-align: center;
+      font-size: 12px;
+      color: #94a3b8;
+      line-height: 1.5;
+    }
+    .email-footer a {
+      color: #f97316;
+      text-decoration: none;
+    }
+    .email-footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="email-container">
+    <!-- Header with Sonder styling -->
+    <div class="email-header">
+      <div class="logo-badge">S</div>
+      <h1>Account Verification</h1>
+    </div>
+
+    <!-- Body Content -->
+    <div class="email-body">
+      <p class="welcome-text">
+        Hello <strong>{{to_name}}</strong>,<br>
+        Thank you for signing up as a counsellor on Sonder. To complete your registration and verify your email address, please use the following One-Time Password (OTP):
+      </p>
+
+      <!-- OTP Display -->
+      <div class="otp-container">
+        <div class="otp-label">Verification Code</div>
+        <div class="otp-code">{{otp}}</div>
+        <p class="expiry-text">This code is valid for <strong>5 minutes</strong></p>
+      </div>
+
+      <!-- Security Notice -->
+      <div class="info-box">
+        <strong>Security Notice:</strong> Do not share this OTP with anyone. If you did not attempt to sign up on Sonder, please ignore this email or contact support if you suspect unauthorized activity.
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="email-footer">
+      <p>This is an automated verification email from Sonder.</p>
+      <p>© 2026 Sonder. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>
