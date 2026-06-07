@@ -67,22 +67,36 @@ def send_email(to_email: str, subject: str, template_params: dict) -> bool:
         return False
 
 
-# =========================
-# OTP EMAIL WRAPPER
-# =========================
 def send_verification_email(to_email: str, otp: str) -> bool:
     subject = "Verify Your Account - OTP Code"
     
-    # Setup standard template parameters that are common in EmailJS templates:
-    # to_email, reply_to, email, to, otp, subject, message, and to_name.
-    # By including multiple standard recipient keys (like reply_to, which is
-    # the EmailJS default), we minimize the chance of empty recipient errors.
+    # Setup template parameters to support both the custom Sonder template
+    # and default EmailJS templates. We include multiple synonyms for the
+    # recipient address, the OTP code, the company name, and expiration times.
     template_params = {
+        # Recipient email fallbacks
         "to_email": to_email,
         "reply_to": to_email,  # EmailJS default recipient variable name
         "email": to_email,
         "to": to_email,
+        
+        # OTP / verification code fallbacks
         "otp": otp,
+        "otp_code": otp,
+        "code": otp,
+        "passcode": otp,
+        
+        # Company name fallbacks
+        "company_name": "Sonder",
+        "company": "Sonder",
+        "app_name": "Sonder",
+        
+        # Expiry fallbacks
+        "expiry": "5 minutes",
+        "expires": "5 minutes",
+        "valid_till": "5 minutes",
+        
+        # Standard text parameters
         "subject": subject,
         "message": f"Your OTP code is: {otp}. This code is valid for 5 minutes.",
         "to_name": to_email.split('@')[0]
