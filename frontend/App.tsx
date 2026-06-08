@@ -10,6 +10,12 @@ import Insight from './src/pages/Insight';
 import Journal from './src/pages/Journal';
 import Exercises from './src/pages/Exercises';
 import Auth from './src/pages/Auth';
+import MyStudents from './src/pages/MyStudents';
+import Appointments from './src/pages/Appointments';
+import SessionNotes from './src/pages/SessionNotes';
+import Analytics from './src/pages/Analytics';
+import Alerts from './src/pages/Alerts';
+import AdminDashboard from './src/pages/AdminDashboard';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -19,13 +25,26 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 };
 
 const AppContent: React.FC = () => {
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, logout, user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
   // Helper to sync Nav highlights
   const currentPath = location.pathname.split('/')[1] || 'dashboard';
 
+  // 1. Admin Console Gate: Completely bypasses standard app shell
+  if (isAuthenticated && user?.role === 'admin') {
+    return (
+      <ProtectedRoute>
+        <Routes>
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="*" element={<Navigate to="/admin" replace />} />
+        </Routes>
+      </ProtectedRoute>
+    );
+  }
+
+  // 2. Student and Counsellor shells
   return (
     <Routes>
       <Route path="/login" element={<Auth initialMode="login" />} />
@@ -51,18 +70,29 @@ const AppContent: React.FC = () => {
                 </div>
               </header>
 
-              {/* Main Content Area */}
+              {/* Main Content Area: Gated based on role as single source of truth */}
               <div className="flex-1 p-4 md:p-6 lg:p-8 max-w-6xl mx-auto w-full">
-                <Routes>
-                  <Route path="dashboard" element={<Dashboard setView={(v) => navigate(`/${v}`)} />} />
-                  <Route path="companion" element={<Companion />} />
-                  <Route path="sanctuary" element={<Sanctuary />} />
-                  <Route path="connect" element={<Connect />} />
-                  <Route path="insight" element={<Insight />} />
-                  <Route path="journal" element={<Journal />} />
-                  <Route path="exercises" element={<Exercises />} />
-                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                </Routes>
+                {user?.role === 'counsellor' ? (
+                  <Routes>
+                    <Route path="dashboard" element={<Dashboard setView={(v) => navigate(`/${v}`)} />} />
+                    <Route path="mystudents" element={<MyStudents />} />
+                    <Route path="appointments" element={<Appointments />} />
+                    <Route path="sessionnotes" element={<SessionNotes />} />
+                    <Route path="analytics" element={<Analytics />} />
+                    <Route path="alerts" element={<Alerts />} />
+                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                  </Routes>
+                ) : (
+                  <Routes>
+                    <Route path="dashboard" element={<Dashboard setView={(v) => navigate(`/${v}`)} />} />
+                    <Route path="companion" element={<Companion />} />
+                    <Route path="sanctuary" element={<Sanctuary />} />
+                    <Route path="connect" element={<Connect />} />
+                    <Route path="journal" element={<Journal />} />
+                    <Route path="exercises" element={<Exercises />} />
+                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                  </Routes>
+                )}
               </div>
             </main>
           </div>

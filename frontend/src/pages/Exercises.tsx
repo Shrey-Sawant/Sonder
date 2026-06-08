@@ -1,17 +1,218 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Play, Square, Volume2, VolumeX, Wind, HeartPulse, Activity } from 'lucide-react';
+import { Play, Square, Volume2, VolumeX, Wind, HeartPulse, Activity, Headphones, Music } from 'lucide-react';
 import api from '../services/api';
 
 // Box Breathing Component
 const BoxBreathing = ({ onComplete }: { onComplete: (duration: number) => void }) => {
   const [isActive, setIsActive] = useState(false);
   const [phase, setPhase] = useState<'Inhale' | 'Hold' | 'Exhale' | 'Hold Out'>('Inhale');
-  const [soundEnabled, setSoundEnabled] = useState(false);
+  
+  // Ambient Sound picker and playback
+  const [soundType, setSoundType] = useState<'rain' | 'ocean' | 'forest'>('rain');
+  const [ambientPlaying, setAmbientPlaying] = useState(false);
+  
+  // Audio Nodes refs
   const audioCtx = useRef<AudioContext | null>(null);
-  const osc = useRef<OscillatorNode | null>(null);
+  const ambientNoiseSource = useRef<AudioBufferSourceNode | null>(null);
+  const ambientGainNode = useRef<GainNode | null>(null);
+  const lfoNode = useRef<OscillatorNode | null>(null);
+  const forestInterval = useRef<NodeJS.Timeout | null>(null);
+  
+  // Healing cycle tone refs
+  const healingOsc = useRef<OscillatorNode | null>(null);
+  
   const timer = useRef<NodeJS.Timeout | null>(null);
   const startTime = useRef<number>(0);
 
+  // Initialize Audio Context on demand
+  const initAudio = () => {
+    if (!audioCtx.current) {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      audioCtx.current = new AudioContextClass();
+    }
+    if (audioCtx.current.state === 'suspended') {
+      audioCtx.current.resume();
+    }
+  };
+
+  // Noise Buffer Helper
+  const createNoiseBuffer = () => {
+    if (!audioCtx.current) return null;
+    const bufferSize = audioCtx.current.sampleRate * 2; // 2 seconds of noise
+    const buffer = audioCtx.current.createBuffer(1, bufferSize, audioCtx.current.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    return buffer;
+  };
+
+  // Start Ambient synthesis
+  const startAmbient = () => {
+    initAudio();
+    const ctx = audioCtx.current;
+    if (!ctx) return;
+
+    // Stop current nodes
+    stopAmbientNodes();
+
+    const noiseBuffer = createNoiseBuffer();
+    if (!noiseBuffer) return;
+
+    // 1. Noise Source
+    const noiseSource = ctx.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+    noiseSource.loop = true;
+    ambientNoiseSource.current = noiseSource;
+
+    // 2. Main Gain Node
+    const mainGain = ctx.createGain();
+    mainGain.gain.setValueAtTime(0, ctx.currentTime); // fade in
+    mainGain.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 1.0);
+    ambientGainNode.current = mainGain;
+
+    if (soundType === 'rain') {
+      // Bandpass Filter to shape noise into rain rustle
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'peaking';
+      filter.frequency.setValueAtTime(1000, ctx.currentTime);
+      filter.Q.setValueAtTime(1.2, ctx.currentTime);
+      filter.gain.setValueAtTime(3, ctx.currentTime);
+
+      noiseSource.connect(filter);
+      filter.connect(mainGain);
+      mainGain.connect(ctx.destination);
+      noiseSource.start();
+
+    } else if (soundType === 'ocean') {
+      // Swelling wave sound
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(350, ctx.currentTime);
+
+      const lfo = ctx.createOscillator();
+      lfo.frequency.setValueAtTime(0.08, ctx.currentTime); // slow wave cycle (12s)
+      lfoNode.current = lfo;
+
+      const filterMod = ctx.createGain();
+      filterMod.gain.setValueAtTime(250, ctx.currentTime); // modulate cutoff by 250Hz
+
+      const volumeMod = ctx.createGain();
+      volumeMod.gain.setValueAtTime(0.04, ctx.currentTime); // modulate volume
+
+      lfo.connect(filterMod);
+      filterMod.connect(filter.frequency);
+
+      lfo.connect(volumeMod);
+      volumeMod.connect(mainGain.gain);
+
+      noiseSource.connect(filter);
+      filter.connect(mainGain);
+      mainGain.connect(ctx.destination);
+
+      lfo.start();
+      noiseSource.start();
+
+      // Initial gain boost to offset modulation starting from 0
+      mainGain.gain.setValueAtTime(0.03, ctx.currentTime);
+
+    } else if (soundType === 'forest') {
+      // Wind rustle + randomized bird sweep chirps
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(200, ctx.currentTime);
+
+      noiseSource.connect(filter);
+      filter.connect(mainGain);
+      mainGain.connect(ctx.destination);
+      noiseSource.start();
+
+      // Synthesized Bird Sweeps helper
+      const playBirdChirp = () => {
+        if (!audioCtx.current) return;
+        const osc = audioCtx.current.createOscillator();
+        const chirpGain = audioCtx.current.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(2800, audioCtx.current.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1300, audioCtx.current.currentTime + 0.14);
+
+        chirpGain.gain.setValueAtTime(0, audioCtx.current.currentTime);
+        chirpGain.gain.linearRampToValueAtTime(0.015, audioCtx.current.currentTime + 0.02);
+        chirpGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.current.currentTime + 0.14);
+
+        osc.connect(chirpGain);
+        chirpGain.connect(audioCtx.current.destination);
+
+        osc.start();
+        osc.stop(audioCtx.current.currentTime + 0.15);
+      };
+
+      // Play initially and schedule intervals
+      playBirdChirp();
+      forestInterval.current = setInterval(() => {
+        if (Math.random() > 0.3) {
+          playBirdChirp();
+          if (Math.random() > 0.6) {
+            setTimeout(playBirdChirp, 150); // Double chirp
+          }
+        }
+      }, 3500);
+    }
+
+    setAmbientPlaying(true);
+  };
+
+  const stopAmbientNodes = () => {
+    if (ambientNoiseSource.current) {
+      try { ambientNoiseSource.current.stop(); } catch(e){}
+      ambientNoiseSource.current.disconnect();
+      ambientNoiseSource.current = null;
+    }
+    if (ambientGainNode.current) {
+      ambientGainNode.current.disconnect();
+      ambientGainNode.current = null;
+    }
+    if (lfoNode.current) {
+      try { lfoNode.current.stop(); } catch(e){}
+      lfoNode.current.disconnect();
+      lfoNode.current = null;
+    }
+    if (forestInterval.current) {
+      clearInterval(forestInterval.current);
+      forestInterval.current = null;
+    }
+  };
+
+  const stopAmbient = () => {
+    stopAmbientNodes();
+    setAmbientPlaying(false);
+  };
+
+  // Healing visual cycle sound playing
+  const playHealingCycleTone = (start: boolean) => {
+    if (!audioCtx.current) return;
+    if (start) {
+      if (!healingOsc.current) {
+        healingOsc.current = audioCtx.current.createOscillator();
+        healingOsc.current.type = 'sine';
+        healingOsc.current.frequency.setValueAtTime(174, audioCtx.current.currentTime); // 174Hz healing tone
+        const toneGain = audioCtx.current.createGain();
+        toneGain.gain.setValueAtTime(0.08, audioCtx.current.currentTime);
+        healingOsc.current.connect(toneGain);
+        toneGain.connect(audioCtx.current.destination);
+        healingOsc.current.start();
+      }
+    } else {
+      if (healingOsc.current) {
+        try { healingOsc.current.stop(); } catch(e){}
+        healingOsc.current.disconnect();
+        healingOsc.current = null;
+      }
+    }
+  };
+
+  // Breathing Cycle loop
   useEffect(() => {
     if (isActive) {
       startTime.current = Date.now();
@@ -19,27 +220,14 @@ const BoxBreathing = ({ onComplete }: { onComplete: (duration: number) => void }
       const phases: typeof phase[] = ['Inhale', 'Hold', 'Exhale', 'Hold Out'];
       
       const runCycle = () => {
-        setPhase(phases[step % 4]);
-        if (soundEnabled && audioCtx.current) {
-           if (step % 4 === 0 || step % 4 === 2) {
-               // Play soft tone
-               if (!osc.current) {
-                 osc.current = audioCtx.current.createOscillator();
-                 osc.current.type = 'sine';
-                 osc.current.frequency.setValueAtTime(174, audioCtx.current.currentTime); // Healing frequency
-                 const gain = audioCtx.current.createGain();
-                 gain.gain.value = 0.1;
-                 osc.current.connect(gain);
-                 gain.connect(audioCtx.current.destination);
-                 osc.current.start();
-               }
-           } else {
-               if (osc.current) {
-                   osc.current.stop();
-                   osc.current.disconnect();
-                   osc.current = null;
-               }
-           }
+        const currentPhase = phases[step % 4];
+        setPhase(currentPhase);
+        
+        // Play healing tone during inhalation/exhalation segments
+        if (currentPhase === 'Inhale' || currentPhase === 'Exhale') {
+          playHealingCycleTone(true);
+        } else {
+          playHealingCycleTone(false);
         }
         step++;
       };
@@ -49,46 +237,78 @@ const BoxBreathing = ({ onComplete }: { onComplete: (duration: number) => void }
 
     } else {
       if (timer.current) clearInterval(timer.current);
-      if (osc.current) {
-          try { osc.current.stop(); } catch(e){}
-          osc.current.disconnect();
-          osc.current = null;
-      }
+      playHealingCycleTone(false);
       
       // Calculate duration when stopping
       if (startTime.current > 0) {
-          const duration = Math.floor((Date.now() - startTime.current) / 1000);
-          if (duration > 5) {
-              onComplete(duration);
-          }
-          startTime.current = 0;
+        const duration = Math.floor((Date.now() - startTime.current) / 1000);
+        if (duration > 5) {
+          onComplete(duration);
+        }
+        startTime.current = 0;
       }
     }
     
     return () => {
-        if (timer.current) clearInterval(timer.current);
-        if (osc.current) { try { osc.current.stop(); } catch(e){} }
+      if (timer.current) clearInterval(timer.current);
+      playHealingCycleTone(false);
     };
-  }, [isActive, soundEnabled]);
+  }, [isActive]);
 
-  const toggleSound = () => {
-      if (!audioCtx.current) {
-          const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-          audioCtx.current = new AudioContext();
-      }
-      if (audioCtx.current.state === 'suspended') {
-          audioCtx.current.resume();
-      }
-      setSoundEnabled(!soundEnabled);
+  // Clean up audio nodes on unmount
+  useEffect(() => {
+    return () => {
+      stopAmbientNodes();
+    };
+  }, []);
+
+  // Sync ambient sound source if sound type changes while playing
+  useEffect(() => {
+    if (ambientPlaying) {
+      startAmbient();
+    }
+  }, [soundType]);
+
+  const toggleAmbient = () => {
+    if (ambientPlaying) {
+      stopAmbient();
+    } else {
+      startAmbient();
+    }
   };
 
   return (
-    <div className="flex flex-col items-center gap-6 p-8 bg-indigo-50 dark:bg-indigo-950/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/50">
+    <div className="flex flex-col items-center gap-6 p-8 bg-indigo-50 dark:bg-indigo-950/20 rounded-[2.5rem] border border-indigo-100 dark:border-indigo-900/50">
       <div className="flex justify-between w-full items-center">
-         <h3 className="text-xl font-semibold flex items-center gap-2"><Wind className="w-5 h-5 text-indigo-500"/> Box Breathing</h3>
-         <button onClick={toggleSound} className="p-2 bg-white dark:bg-zinc-800 rounded-full shadow-sm">
-             {soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
-         </button>
+        <h3 className="text-xl font-bold flex items-center gap-2"><Wind className="w-5 h-5 text-indigo-500"/> Box Breathing</h3>
+        
+        {/* Play Ambient Audio Button */}
+        <button 
+          onClick={toggleAmbient} 
+          className={`p-3 rounded-full shadow-sm transition-all ${
+            ambientPlaying ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
+          }`}
+          title="Play Ambient Background Sounds"
+        >
+          <Music className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Sound Type Picker */}
+      <div className="w-full flex bg-zinc-200/50 dark:bg-zinc-800/60 p-1 rounded-xl">
+        {(['rain', 'ocean', 'forest'] as const).map((type) => (
+          <button
+            key={type}
+            onClick={() => setSoundType(type)}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all ${
+              soundType === type 
+                ? 'bg-white dark:bg-zinc-700 shadow text-indigo-600 dark:text-indigo-400' 
+                : 'text-zinc-500'
+            }`}
+          >
+            {type}
+          </button>
+        ))}
       </div>
       
       <div className="relative w-48 h-48 flex items-center justify-center">
@@ -97,7 +317,7 @@ const BoxBreathing = ({ onComplete }: { onComplete: (duration: number) => void }
         
         <div className="z-10 text-center">
           <span className="text-2xl font-bold text-indigo-700 dark:text-indigo-300">{isActive ? phase : 'Ready'}</span>
-          {isActive && <p className="text-sm mt-1 text-indigo-600/70">4 seconds</p>}
+          {isActive && <p className="text-xs mt-1 text-indigo-600/70 dark:text-indigo-400/70">4 seconds</p>}
         </div>
       </div>
 
@@ -137,16 +357,16 @@ const Grounding = ({ onComplete }: { onComplete: (duration: number) => void }) =
     };
 
     return (
-        <div className="flex flex-col items-center gap-6 p-8 bg-sage-50 dark:bg-green-950/20 rounded-2xl border border-green-100 dark:border-green-900/50">
-           <h3 className="text-xl font-semibold flex items-center gap-2"><Activity className="w-5 h-5 text-green-500"/> 5-4-3-2-1 Grounding</h3>
+        <div className="flex flex-col items-center gap-6 p-8 bg-sage-50 dark:bg-green-950/20 rounded-[2.5rem] border border-green-100 dark:border-green-900/50">
+           <h3 className="text-xl font-bold flex items-center gap-2"><Activity className="w-5 h-5 text-green-500"/> 5-4-3-2-1 Grounding</h3>
            
            <div className="h-32 flex items-center justify-center text-center px-4 w-full">
                {currentStep === -1 ? (
-                   <p className="text-zinc-600 dark:text-zinc-400">Bring your mind back to the present moment by connecting with your surroundings.</p>
+                   <p className="text-zinc-600 dark:text-zinc-400 text-sm">Bring your mind back to the present moment by connecting with your surroundings.</p>
                ) : (
                    <div className="flex flex-col items-center gap-4 animate-fade-in">
                        <span className="text-4xl">{steps[currentStep].icon}</span>
-                       <h4 className="text-2xl font-bold">{steps[currentStep].label}</h4>
+                       <h4 className="text-2xl font-bold text-zinc-800 dark:text-white">{steps[currentStep].label}</h4>
                    </div>
                )}
            </div>
@@ -180,7 +400,7 @@ const Exercises: React.FC = () => {
   return (
     <div className="flex flex-col gap-8 w-full animate-fade-in">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Exercises</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-white">Exercises</h1>
         <p className="text-zinc-500 dark:text-zinc-400 mt-1">Tools to anchor your mind and body.</p>
       </div>
 
@@ -189,7 +409,7 @@ const Exercises: React.FC = () => {
         <Grounding onComplete={(dur) => handleComplete('grounding', dur)} />
         
         {/* PMR Placeholder */}
-        <div className="flex flex-col items-center justify-center gap-4 p-8 bg-rose-50 dark:bg-rose-950/20 rounded-2xl border border-rose-100 dark:border-rose-900/50 opacity-60">
+        <div className="flex flex-col items-center justify-center gap-4 p-8 bg-rose-50 dark:bg-rose-950/20 rounded-[2.5rem] border border-rose-100 dark:border-rose-900/50 opacity-60">
            <HeartPulse className="w-8 h-8 text-rose-500 mb-2"/>
            <h3 className="text-xl font-semibold text-center">Progressive Muscle Relaxation</h3>
            <p className="text-sm text-center">Coming soon in the next update.</p>

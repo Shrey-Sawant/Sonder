@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Sun, CloudRain, Activity, CalendarCheck, CheckCircle2, Heart } from 'lucide-react';
+import { ArrowRight, Sun, CloudRain, Activity, CalendarCheck, CheckCircle2, Heart, ShieldAlert, GraduationCap, Calendar, MessageSquare, AlertCircle } from 'lucide-react';
 import { ViewState } from '../../types';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { requestNotificationPermission } from '../services/notifications';
 
 interface DashboardProps {
-  setView: (view: ViewState) => void;
+  setView: (view: any) => void;
 }
 
 const ProgressRing = ({ radius, stroke, progress, color, label }: { radius: number, stroke: number, progress: number, color: string, label: string }) => {
@@ -36,7 +36,130 @@ const ProgressRing = ({ radius, stroke, progress, color, label }: { radius: numb
     );
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ setView }) => {
+// --- Counsellor Dashboard View ---
+const CounsellorDashboard: React.FC<DashboardProps> = ({ setView }) => {
+  const { user } = useAuth();
+  const [caseloadCount, setCaseloadCount] = useState(5);
+  const [pendingRequests, setPendingRequests] = useState(0);
+
+  useEffect(() => {
+    // Load incoming requests count
+    api.get('/schedule/')
+      .then(res => {
+        const pending = res.data.filter((a: any) => a.status === 'pending');
+        setPendingRequests(pending.length);
+      })
+      .catch(err => console.error(err));
+  }, []);
+
+  return (
+    <div className="space-y-8 animate-fade-in pb-12">
+      <header>
+        <h1 className="text-4xl font-bold tracking-tight text-zinc-900 dark:text-white flex items-center gap-3">
+          Welcome back, {user?.username || 'Clinician'} 🩺
+        </h1>
+        <p className="mt-2 text-zinc-500 dark:text-zinc-400 text-lg font-light">
+          Here is your clinical caseload overview for today.
+        </p>
+      </header>
+
+      {/* Caseload Metrics Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div 
+          onClick={() => setView(ViewState.ALERTS)}
+          className="bg-red-50/20 dark:bg-red-950/10 border border-red-200/50 dark:border-red-900/30 p-6 rounded-[2rem] shadow-sm hover:shadow-md cursor-pointer transition-all"
+        >
+          <div className="flex justify-between items-center mb-3">
+            <span className="text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-wider">At-Risk Flags</span>
+            <ShieldAlert className="text-red-500 w-5 h-5 animate-pulse" />
+          </div>
+          <span className="text-4xl font-bold text-zinc-900 dark:text-white">8</span>
+          <span className="text-xs text-red-500 font-semibold block mt-1.5">2 high risk alerts active</span>
+        </div>
+
+        <div 
+          onClick={() => setView(ViewState.APPOINTMENTS)}
+          className="bg-indigo-50/30 dark:bg-indigo-950/10 border border-indigo-100 dark:border-indigo-900/30 p-6 rounded-[2rem] shadow-sm hover:shadow-md cursor-pointer transition-all"
+        >
+          <div className="flex justify-between items-center mb-3">
+            <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Today's Sessions</span>
+            <Calendar className="text-indigo-500 w-5 h-5" />
+          </div>
+          <span className="text-4xl font-bold text-zinc-900 dark:text-white">3</span>
+          {pendingRequests > 0 ? (
+            <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold block mt-1.5">{pendingRequests} booking requests pending</span>
+          ) : (
+            <span className="text-xs text-zinc-500 font-medium block mt-1.5">No pending requests</span>
+          )}
+        </div>
+
+        <div 
+          onClick={() => setView(ViewState.MY_STUDENTS)}
+          className="bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 p-6 rounded-[2rem] shadow-sm hover:shadow-md cursor-pointer transition-all"
+        >
+          <div className="flex justify-between items-center mb-3">
+            <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Caseload Students</span>
+            <GraduationCap className="text-zinc-500 w-5 h-5" />
+          </div>
+          <span className="text-4xl font-bold text-zinc-900 dark:text-white">{caseloadCount}</span>
+          <span className="text-xs text-zinc-500 font-medium block mt-1.5">Active assigned casework</span>
+        </div>
+      </div>
+
+      {/* Caseload Alerts & Activity Feed */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Activity feed */}
+        <div className="lg:col-span-2 bg-white dark:bg-zinc-900 rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 p-6 shadow-sm space-y-4">
+          <h3 className="font-bold text-sm text-zinc-400 uppercase tracking-wide">Recent Student Activity</h3>
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 text-sm">
+              <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-2 shrink-0"></div>
+              <div>
+                <p className="font-semibold text-zinc-800 dark:text-zinc-200">Alice Johnson</p>
+                <p className="text-xs text-zinc-500 mt-0.5">Logged a high risk check-in (PHQ-2 = 5). Interventions threshold hit.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 text-sm">
+              <div className="w-1.5 h-1.5 rounded-full bg-zinc-400 mt-2 shrink-0"></div>
+              <div>
+                <p className="font-semibold text-zinc-800 dark:text-zinc-200">Bob Smith</p>
+                <p className="text-xs text-zinc-500 mt-0.5">Submitted a new journal entry. Mood analyzed: Neutral.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 text-sm">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-2 shrink-0"></div>
+              <div>
+                <p className="font-semibold text-zinc-800 dark:text-zinc-200">Chloe Bennett</p>
+                <p className="text-xs text-zinc-500 mt-0.5">Completed 10 minutes of Grounding Exercises. Streak maintained.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Clinical Tip Box */}
+        <div className="bg-indigo-50/50 dark:bg-zinc-900/40 border border-indigo-100 dark:border-zinc-800 rounded-[2.5rem] p-6 flex flex-col justify-between">
+          <div className="space-y-3">
+            <h3 className="font-bold text-sm text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+              <Heart size={16} /> Clinical Tip
+            </h3>
+            <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed font-light">
+              Stress flags show a 12% rise this week. Keep an eye on student final exam schedules, and recommend the breathing exercises during session sign-offs.
+            </p>
+          </div>
+          <button 
+            onClick={() => setView(ViewState.ANALYTICS)}
+            className="w-full mt-6 py-3 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs font-bold rounded-xl hover:bg-zinc-800 transition-colors flex items-center justify-center gap-1"
+          >
+            Open Campus Analytics <ArrowRight size={14} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Student Dashboard View ---
+const StudentDashboard: React.FC<DashboardProps> = ({ setView }) => {
   const { user } = useAuth();
   const [intention, setIntention] = useState(localStorage.getItem('daily_intention') || '');
   const [showCheckIn, setShowCheckIn] = useState(false);
@@ -47,7 +170,6 @@ const Dashboard: React.FC<DashboardProps> = ({ setView }) => {
   const [isReminderSet, setIsReminderSet] = useState(localStorage.getItem('reminder_set') === 'true');
 
   useEffect(() => {
-     // Gating CheckIn by localStorage timestamp
      const lastCheckIn = localStorage.getItem('last_checkin_date');
      const today = new Date().toDateString();
      if (lastCheckIn !== today) {
@@ -72,7 +194,6 @@ const Dashboard: React.FC<DashboardProps> = ({ setView }) => {
           setShowCheckIn(false);
       } catch(e) {
           console.error(e);
-          // If rate limit hit (429), just hide it
           if ((e as any).response?.status === 429) {
              setShowCheckIn(false);
              localStorage.setItem('last_checkin_date', new Date().toDateString());
@@ -83,9 +204,7 @@ const Dashboard: React.FC<DashboardProps> = ({ setView }) => {
   const handleSetReminder = async () => {
       await requestNotificationPermission();
       try {
-          // Mock push subscription for now as we don't have VAPID keys
           const mockSub = { endpoint: 'mock-endpoint', keys: { p256dh: 'mock', auth: 'mock' } };
-          
           await api.post('/reminders/', {
               type: 'daily_checkin',
               time_of_day: reminderTime,
@@ -108,11 +227,9 @@ const Dashboard: React.FC<DashboardProps> = ({ setView }) => {
   };
 
   return (
-    <div className="space-y-8 relative">
-      {/* Animated Background */}
+    <div className="space-y-8 relative pb-12">
       <div className="absolute inset-0 -z-10 bg-gradient-to-br from-indigo-50/50 via-purple-50/30 to-rose-50/50 dark:from-indigo-950/20 dark:via-purple-950/10 dark:to-rose-950/20 animate-gradient-slow rounded-3xl opacity-60"></div>
 
-      {/* Header Section */}
       <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 pt-4 px-2">
         <div>
           <h1 className="text-4xl md:text-5xl font-bold text-zinc-900 dark:text-white tracking-tight flex items-center gap-3">
@@ -123,7 +240,6 @@ const Dashboard: React.FC<DashboardProps> = ({ setView }) => {
           </p>
         </div>
         
-        {/* Progress Rings */}
         <div className="flex gap-6 bg-white/60 dark:bg-zinc-900/60 backdrop-blur-md p-4 rounded-2xl border border-white/20 dark:border-zinc-800 shadow-sm">
             <ProgressRing radius={30} stroke={4} progress={75} color="#8b5cf6" label="Journal" />
             <ProgressRing radius={30} stroke={4} progress={40} color="#3b82f6" label="Exercise" />
@@ -132,7 +248,6 @@ const Dashboard: React.FC<DashboardProps> = ({ setView }) => {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Today's Intention & Alert Box */}
           <div className="lg:col-span-2 flex flex-col gap-6">
               {checkInResult?.alert && (
                   <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-2xl p-6 shadow-sm">
@@ -159,7 +274,6 @@ const Dashboard: React.FC<DashboardProps> = ({ setView }) => {
                   />
               </div>
 
-              {/* AI Call to Action */}
               <div className="relative overflow-hidden rounded-3xl bg-zinc-900 dark:bg-zinc-800 text-white p-8 md:p-10">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 blur-3xl rounded-full -mr-12 -mt-12"></div>
                 <div className="relative z-10 max-w-2xl">
@@ -175,7 +289,6 @@ const Dashboard: React.FC<DashboardProps> = ({ setView }) => {
               </div>
           </div>
 
-          {/* Daily Check-in Widget */}
           <div className="flex flex-col gap-6">
               {showCheckIn ? (
                   <div className="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md p-6 rounded-3xl border border-indigo-100 dark:border-indigo-900/30 shadow-md">
@@ -219,7 +332,6 @@ const Dashboard: React.FC<DashboardProps> = ({ setView }) => {
                   </div>
               )}
 
-              {/* Quick Actions */}
               <div className="grid grid-cols-2 gap-4">
                   <button onClick={() => setView(ViewState.EXERCISES)} className="p-4 bg-blue-50 dark:bg-blue-950/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors rounded-2xl border border-blue-100 dark:border-blue-900/30 flex flex-col items-center gap-2">
                       <CloudRain className="w-6 h-6 text-blue-500" />
@@ -231,7 +343,6 @@ const Dashboard: React.FC<DashboardProps> = ({ setView }) => {
                   </button>
               </div>
 
-              {/* Reminders Widget */}
               <div className="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm mt-2">
                   <h3 className="font-semibold text-lg mb-2 flex items-center gap-2">
                       <CalendarCheck className="w-5 h-5 text-indigo-500" /> Daily Reminders
@@ -257,6 +368,16 @@ const Dashboard: React.FC<DashboardProps> = ({ setView }) => {
       </div>
     </div>
   );
+};
+
+// --- Main Dashboard Component Switch ---
+const Dashboard: React.FC<DashboardProps> = ({ setView }) => {
+  const { user } = useAuth();
+
+  if (user?.role === 'counsellor') {
+    return <CounsellorDashboard setView={setView} />;
+  }
+  return <StudentDashboard setView={setView} />;
 };
 
 export default Dashboard;

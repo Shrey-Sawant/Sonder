@@ -111,6 +111,13 @@ async def create_schedule_request(
     try:
         await db.commit()
         await db.refresh(new_request)
+        
+        # Load names for response
+        s_name_res = await db.execute(select(User.username).where(User.id == s_id))
+        c_name_res = await db.execute(select(User.username).where(User.id == c_id))
+        new_request.student_name = s_name_res.scalar_one_or_none()
+        new_request.counsellor_name = c_name_res.scalar_one_or_none()
+        
         print(f"-> SUCCESS: Created ScheduleRequest ID {new_request.id}")
         return new_request
     except Exception as e:
@@ -127,17 +134,53 @@ async def get_schedule_requests(
     print(f"\n[DEBUG] GET / (List Requests)")
     print(f"-> User {current_user.id} fetching requests as {current_user.role}")
 
+    from sqlalchemy.orm import aliased
+    StudentUser = aliased(User)
+    CounsellorUser = aliased(User)
+
     # Filters based on role
     if current_user.role == "student":
-        stmt = select(ScheduleRequest).where(ScheduleRequest.student_id == current_user.id)
+        stmt = (
+            select(
+                ScheduleRequest,
+                StudentUser.username.label("student_name"),
+                CounsellorUser.username.label("counsellor_name")
+            )
+            .outerjoin(StudentUser, ScheduleRequest.student_id == StudentUser.id)
+            .outerjoin(CounsellorUser, ScheduleRequest.counsellor_id == CounsellorUser.id)
+            .where(ScheduleRequest.student_id == current_user.id)
+        )
     elif current_user.role == "counsellor":
-        stmt = select(ScheduleRequest).where(ScheduleRequest.counsellor_id == current_user.id)
+        stmt = (
+            select(
+                ScheduleRequest,
+                StudentUser.username.label("student_name"),
+                CounsellorUser.username.label("counsellor_name")
+            )
+            .outerjoin(StudentUser, ScheduleRequest.student_id == StudentUser.id)
+            .outerjoin(CounsellorUser, ScheduleRequest.counsellor_id == CounsellorUser.id)
+            .where(ScheduleRequest.counsellor_id == current_user.id)
+        )
     else:
         print("-> Admin/Other role: fetching all records")
-        stmt = select(ScheduleRequest)
+        stmt = (
+            select(
+                ScheduleRequest,
+                StudentUser.username.label("student_name"),
+                CounsellorUser.username.label("counsellor_name")
+            )
+            .outerjoin(StudentUser, ScheduleRequest.student_id == StudentUser.id)
+            .outerjoin(CounsellorUser, ScheduleRequest.counsellor_id == CounsellorUser.id)
+        )
 
     result = await db.execute(stmt)
-    items = result.scalars().all()
+    items = []
+    for row in result.all():
+        req = row[0]
+        req.student_name = row[1]
+        req.counsellor_name = row[2]
+        items.append(req)
+        
     print(f"-> Returning {len(items)} records.")
     return items
 
@@ -182,6 +225,13 @@ async def update_schedule_status(
     try:
         await db.commit()
         await db.refresh(request_obj)
+        
+        # Load names for response
+        s_name_res = await db.execute(select(User.username).where(User.id == request_obj.student_id))
+        c_name_res = await db.execute(select(User.username).where(User.id == request_obj.counsellor_id))
+        request_obj.student_name = s_name_res.scalar_one_or_none()
+        request_obj.counsellor_name = c_name_res.scalar_one_or_none()
+        
         print("-> Update successful.")
         return request_obj
     except Exception as e:

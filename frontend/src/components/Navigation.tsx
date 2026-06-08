@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, MessageCircleHeart, Library, Users, BarChart3, LifeBuoy, PenTool, Activity } from 'lucide-react';
+import { Home, MessageCircleHeart, Library, Users, BarChart3, PenTool, Activity, Calendar, ClipboardList, ShieldAlert, GraduationCap } from 'lucide-react';
 import { ViewState } from '../../types';
 
 interface NavigationProps {
@@ -11,15 +11,30 @@ import { useAuth } from '../context/AuthContext';
 
 const Navigation: React.FC<NavigationProps> = ({ currentView, setView }) => {
   const { user } = useAuth();
-  const navItems = [
+  
+  if (user?.role === 'admin') {
+    return null; // Admin has their own layout in App.tsx
+  }
+
+  const studentItems = [
     { id: ViewState.DASHBOARD, icon: Home, label: 'Home' },
     { id: ViewState.JOURNAL, icon: PenTool, label: 'Journal' },
     { id: ViewState.EXERCISES, icon: Activity, label: 'Exercises' },
     { id: ViewState.COMPANION, icon: MessageCircleHeart, label: 'Companion' },
     { id: ViewState.SANCTUARY, icon: Library, label: 'Sanctuary' },
     { id: ViewState.CONNECT, icon: Users, label: 'Connect' },
-    { id: ViewState.INSIGHT, icon: BarChart3, label: 'Insight' },
   ];
+
+  const counsellorItems = [
+    { id: ViewState.DASHBOARD, icon: Home, label: 'Dashboard' },
+    { id: ViewState.MY_STUDENTS, icon: GraduationCap, label: 'My Students' },
+    { id: ViewState.APPOINTMENTS, icon: Calendar, label: 'Appointments' },
+    { id: ViewState.SESSION_NOTES, icon: ClipboardList, label: 'Session Notes' },
+    { id: ViewState.ANALYTICS, icon: BarChart3, label: 'Analytics' },
+    { id: ViewState.ALERTS, icon: ShieldAlert, label: 'Alerts' },
+  ];
+
+  const navItems = user?.role === 'counsellor' ? counsellorItems : studentItems;
 
   return (
     <>
@@ -62,7 +77,7 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView }) => {
       {/* Mobile Bottom Bar */}
       <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white/90 dark:bg-zinc-950/90 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 z-50 pb-safe">
         <div className="flex justify-around items-center p-4">
-          {navItems.slice(0, 5).map((item) => (
+          {navItems.map((item) => (
             <button
               key={item.id}
               onClick={() => setView(item.id)}

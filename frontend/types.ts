@@ -37,5 +37,19 @@ export enum ViewState {
   CONNECT = 'connect', // Counseling/Peer
   INSIGHT = 'insight', // Admin
   JOURNAL = 'journal', // Mood Journal
-  EXERCISES = 'exercises' // Exercises
+  EXERCISES = 'exercises', // Exercises
+
+  // Counsellor Views:
+  MY_STUDENTS = 'mystudents',
+  APPOINTMENTS = 'appointments',
+  SESSION_NOTES = 'sessionnotes',
+  ANALYTICS = 'analytics',
+  ALERTS = 'alerts',
+
+  // Admin Sidebar Sub-Views
+  ADMIN_USERS = 'admin-users',
+  ADMIN_FLAGS = 'admin-flags',
+  ADMIN_CONTENT = 'admin-content',
+  ADMIN_SETTINGS = 'admin-settings',
+  ADMIN_AUDIT = 'admin-audit'
 }

@@ -19,6 +19,8 @@ class ScheduleRequestResponse(ScheduleRequestBase):
     student_id: int
     counsellor_id: int
     created_at: datetime
+    student_name: Optional[str] = None
+    counsellor_name: Optional[str] = None
 
     class Config:
         from_attributes = True
