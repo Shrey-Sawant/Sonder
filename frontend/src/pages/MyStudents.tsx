@@ -15,15 +15,25 @@ interface CaseworkStudent {
 
 const MyStudents: React.FC = () => {
   const { user } = useAuth();
-  const [students, setStudents] = useState<CaseworkStudent[]>([
-    { id: 11, username: 'Alice Johnson', email: 'alice.j@uni.edu', risk: 'High', lastActive: '2 hours ago', moodLabel: '😔' },
-    { id: 12, username: 'Bob Smith', email: 'bob.s@uni.edu', risk: 'Medium', lastActive: '1 day ago', moodLabel: '😐' },
-    { id: 13, username: 'Chloe Bennett', email: 'chloe.b@uni.edu', risk: 'Low', lastActive: '3 hours ago', moodLabel: '😄' },
-    { id: 14, username: 'David Lee', email: 'david.l@uni.edu', risk: 'Low', lastActive: '3 days ago', moodLabel: '🙂' },
-    { id: 15, username: 'Emma Watson', email: 'emma.w@uni.edu', risk: 'Medium', lastActive: '5 hours ago', moodLabel: '☹️' }
-  ]);
+  const [students, setStudents] = useState<CaseworkStudent[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<CaseworkStudent | null>(null);
+
+  useEffect(() => {
+    const fetchStudents = async () => {
+      try {
+        setLoading(true);
+        const res = await api.get('/users/my-students');
+        setStudents(res.data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStudents();
+  }, []);
 
   const filtered = students.filter(s => s.username.toLowerCase().includes(search.toLowerCase()));
 
@@ -70,44 +80,50 @@ const MyStudents: React.FC = () => {
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filtered.map((student) => (
-          <div key={student.id} className="bg-white dark:bg-zinc-900 p-6 rounded-[2rem] border border-zinc-200 dark:border-zinc-800 flex flex-col justify-between hover:shadow-lg transition-all shadow-sm">
-            <div className="space-y-4">
-              <div className="flex justify-between items-start">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 rounded-2xl flex items-center justify-center shrink-0">
-                    <User size={22} />
+      {loading ? (
+        <div className="py-20 text-center text-zinc-500">Loading student directory...</div>
+      ) : filtered.length === 0 ? (
+        <div className="py-20 text-center text-zinc-500 border border-zinc-200 dark:border-zinc-800 rounded-3xl">No students found.</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filtered.map((student) => (
+            <div key={student.id} className="bg-white dark:bg-zinc-900 p-6 rounded-[2rem] border border-zinc-200 dark:border-zinc-800 flex flex-col justify-between hover:shadow-lg transition-all shadow-sm">
+              <div className="space-y-4">
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 rounded-2xl flex items-center justify-center shrink-0">
+                      <User size={22} />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-zinc-900 dark:text-white leading-tight">{student.username}</h3>
+                      <p className="text-xs text-zinc-500 mt-0.5">{student.email}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-zinc-900 dark:text-white leading-tight">{student.username}</h3>
-                    <p className="text-xs text-zinc-500 mt-0.5">{student.email}</p>
-                  </div>
+                  <span className="text-2xl" title="Recent Mood">{student.moodLabel}</span>
                 </div>
-                <span className="text-2xl" title="Recent Mood">{student.moodLabel}</span>
+
+                <div className="flex justify-between text-xs font-semibold pt-2 border-t border-zinc-100 dark:border-zinc-800 text-zinc-500">
+                  <span>Last Active: {student.lastActive}</span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                    student.risk === 'High' ? 'bg-red-50 text-red-600 dark:bg-red-950/20 dark:text-red-400' :
+                    student.risk === 'Medium' ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/20 dark:text-amber-400' :
+                    'bg-green-50 text-green-600 dark:bg-green-950/20 dark:text-green-400'
+                  }`}>
+                    {student.risk} Risk
+                  </span>
+                </div>
               </div>
 
-              <div className="flex justify-between text-xs font-semibold pt-2 border-t border-zinc-100 dark:border-zinc-800 text-zinc-500">
-                <span>Last Active: {student.lastActive}</span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                  student.risk === 'High' ? 'bg-red-50 text-red-600 dark:bg-red-950/20 dark:text-red-400' :
-                  student.risk === 'Medium' ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/20 dark:text-amber-400' :
-                  'bg-green-50 text-green-600 dark:bg-green-950/20 dark:text-green-400'
-                }`}>
-                  {student.risk} Risk
-                </span>
-              </div>
+              <button
+                onClick={() => setSelectedStudent(student)}
+                className="mt-6 w-full py-3 bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all"
+              >
+                <MessageSquare size={14} /> Send Message
+              </button>
             </div>
-
-            <button
-              onClick={() => setSelectedStudent(student)}
-              className="mt-6 w-full py-3 bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all"
-            >
-              <MessageSquare size={14} /> Send Message
-            </button>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

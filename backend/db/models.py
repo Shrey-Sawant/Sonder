@@ -8,3 +8,4 @@ from models.journal import JournalEntry
 from models.exercise import ExerciseCompletion
 from models.checkin import CheckIn
 from models.reminder import Reminder
+from models.session_note import SessionNote

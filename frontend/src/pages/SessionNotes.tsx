@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ClipboardList, Plus, Trash2, Calendar, FileText, ChevronRight } from 'lucide-react';
+import api from '../services/api';
 
 interface Note {
   id: string;
@@ -10,52 +11,69 @@ interface Note {
 }
 
 const SessionNotes: React.FC = () => {
-  const [students] = useState([
-    { id: 11, name: 'Alice Johnson' },
-    { id: 12, name: 'Bob Smith' },
-    { id: 13, name: 'Chloe Bennett' },
-    { id: 14, name: 'David Lee' },
-    { id: 15, name: 'Emma Watson' }
-  ]);
-
-  const [selectedStudentId, setSelectedStudentId] = useState<number>(11);
+  const [students, setStudents] = useState<any[]>([]);
+  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
   const [noteText, setNoteText] = useState('');
-  const [notes, setNotes] = useState<Note[]>(() => {
-    const saved = localStorage.getItem('counsellor_session_notes');
-    return saved ? JSON.parse(saved) : [
-      { id: '1', studentId: 11, studentName: 'Alice Johnson', text: 'Reviewed box breathing exercises. Student reports high academic pressure and sleep latency issues. Advised reduced caffeine intake after 4 PM.', date: '2026-06-08' },
-      { id: '2', studentId: 12, studentName: 'Bob Smith', text: 'Student showed moderate anxiety indicators. Discussed scheduling structures for final exam preps to counter procrastination triggers.', date: '2026-06-07' }
-    ];
-  });
+  const [notes, setNotes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchStudents = async () => {
+    try {
+      const res = await api.get('/users/my-students');
+      setStudents(res.data);
+      if (res.data.length > 0) {
+        setSelectedStudentId(res.data[0].id);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchNotes = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get('/notes');
+      setNotes(res.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    localStorage.setItem('counsellor_session_notes', JSON.stringify(notes));
-  }, [notes]);
+    fetchStudents();
+    fetchNotes();
+  }, []);
 
-  const handleAddNote = (e: React.FormEvent) => {
+  const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!noteText.trim()) return;
+    if (!noteText.trim() || !selectedStudentId) return;
 
-    const studentObj = students.find(s => s.id === selectedStudentId);
-    if (!studentObj) return;
-
-    const newNote: Note = {
-      id: Date.now().toString(),
-      studentId: selectedStudentId,
-      studentName: studentObj.name,
-      text: noteText,
-      date: new Date().toISOString().split('T')[0]
-    };
-
-    setNotes([newNote, ...notes]);
-    setNoteText('');
+    try {
+      await api.post('/notes/', {
+        student_id: selectedStudentId,
+        text: noteText
+      });
+      setNoteText('');
+      fetchNotes();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save session notes.');
+    }
   };
 
-  const handleDeleteNote = (id: string) => {
-    setNotes(prev => prev.filter(n => n.id !== id));
+  const handleDeleteNote = async (id: number) => {
+    try {
+      await api.delete(`/notes/${id}`);
+      fetchNotes();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete session note.');
+    }
   };
 
-  const filteredNotes = notes.filter(n => n.studentId === selectedStudentId);
+  const filteredNotes = notes.filter(n => n.student_id === selectedStudentId);
 
   return (
     <div className="space-y-8 animate-fade-in pb-12">
@@ -75,12 +93,12 @@ const SessionNotes: React.FC = () => {
             <div>
               <label className="text-xs font-bold text-zinc-400 uppercase tracking-wide">Select Student</label>
               <select
-                value={selectedStudentId}
+                value={selectedStudentId || ''}
                 onChange={(e) => setSelectedStudentId(Number(e.target.value))}
                 className="w-full mt-1.5 p-4 bg-zinc-50 dark:bg-zinc-800 rounded-2xl border border-zinc-200 dark:border-zinc-700 outline-none text-sm dark:text-white focus:ring-2 focus:ring-indigo-500/20"
               >
                 {students.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
+                  <option key={s.id} value={s.id}>{s.username}</option>
                 ))}
               </select>
             </div>
@@ -109,11 +127,15 @@ const SessionNotes: React.FC = () => {
         {/* Note Roster History */}
         <div className="bg-white dark:bg-zinc-900 rounded-3xl p-6 border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col h-[520px]">
           <h2 className="text-lg font-bold text-zinc-900 dark:text-white mb-4">
-            History Log for {students.find(s => s.id === selectedStudentId)?.name}
+            History Log for {students.find(s => s.id === selectedStudentId)?.username || 'Student'}
           </h2>
 
           <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-            {filteredNotes.length === 0 ? (
+            {loading ? (
+              <div className="text-zinc-400 dark:text-zinc-600 text-center py-20 text-xs">
+                Loading logs...
+              </div>
+            ) : filteredNotes.length === 0 ? (
               <div className="text-zinc-400 dark:text-zinc-600 text-center py-20 text-xs">
                 No logs recorded for this student.
               </div>
@@ -121,7 +143,9 @@ const SessionNotes: React.FC = () => {
               filteredNotes.map(n => (
                 <div key={n.id} className="bg-zinc-50 dark:bg-zinc-800/40 p-4 rounded-2xl border border-zinc-100 dark:border-zinc-800/60 relative group">
                   <div className="flex justify-between items-center mb-2 text-[10px] text-zinc-400 font-semibold uppercase">
-                    <span className="flex items-center gap-1"><Calendar size={10} /> {n.date}</span>
+                    <span className="flex items-center gap-1">
+                      <Calendar size={10} /> {new Date(n.created_at).toLocaleDateString()}
+                    </span>
                     <button
                       onClick={() => handleDeleteNote(n.id)}
                       className="text-zinc-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"

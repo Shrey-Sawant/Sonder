@@ -21,7 +21,6 @@ async def create_reminder(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Overwrite if exists for same type
     result = await db.execute(select(Reminder).where(Reminder.user_id == current_user.id, Reminder.type == reminder.type))
     existing = result.scalars().first()
     
@@ -39,3 +38,16 @@ async def create_reminder(
         
     await db.commit()
     return {"message": "Reminder saved"}
+
+
+@router.get("/current")
+async def get_current_reminder(
+    type: str = "daily_checkin",
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    result = await db.execute(select(Reminder).where(Reminder.user_id == current_user.id, Reminder.type == type))
+    reminder = result.scalars().first()
+    if not reminder:
+        raise HTTPException(status_code=404, detail="No reminder set")
+    return reminder

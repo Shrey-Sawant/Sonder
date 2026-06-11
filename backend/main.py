@@ -103,6 +103,8 @@ app.include_router(exercises_router, prefix="/api/v1/exercises", tags=["exercise
 app.include_router(checkin_router, prefix="/api/v1/checkin", tags=["checkin"])
 from api.v1.reminders import router as reminders_router
 app.include_router(reminders_router, prefix="/api/v1/reminders", tags=["reminders"])
+from api.v1.notes import router as notes_router
+app.include_router(notes_router, prefix="/api/v1/notes", tags=["notes"])
 
 
 @app.get("/")

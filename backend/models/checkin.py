@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, ForeignKey, Integer
+from sqlalchemy import Column, String, DateTime, ForeignKey, Integer, Boolean
 from datetime import datetime
 from db.session import Base
 
@@ -11,4 +11,5 @@ class CheckIn(Base):
     q1_score = Column(Integer, nullable=False)
     q2_score = Column(Integer, nullable=False)
     alert_triggered = Column(Integer, default=0) # 0=False, 1=True
+    is_resolved = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False, index=True)

@@ -20,5 +20,6 @@ class User(Base):
     rating = Column(Float, default=0.0)
     is_available = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
+    is_approved = Column(Boolean, default=False)
 
     created_at = Column(DateTime, server_default=func.now())

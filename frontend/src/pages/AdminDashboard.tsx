@@ -23,17 +23,9 @@ interface ReportedJournal {
 const AdminDashboard: React.FC = () => {
   const { logout } = useAuth();
   const [activeTab, setActiveTab] = useState<'dashboard' | 'insight' | 'users' | 'flags' | 'content' | 'settings' | 'audit'>('dashboard');
-  const [pendingCounsellors, setPendingCounsellors] = useState<PendingCounsellor[]>([
-    { id: 101, username: 'Dr. Sarah Carter', email: 'sarah.carter@sonder.org', experience: 8, certification: 'Ph.D. in Clinical Psychology' },
-    { id: 102, username: 'Marcus Miller', email: 'marcus.m@sonder.org', experience: 5, certification: 'LCSW, Mental Health Counsellor' },
-    { id: 103, username: 'Elena Rostova', email: 'elena.r@sonder.org', experience: 6, certification: 'M.S. in Counseling Psychology' }
-  ]);
-
-  const [reportedJournals, setReportedJournals] = useState<ReportedJournal[]>([
-    { id: 201, student: 'Alice Johnson', text: 'I feel completely hopeless today. No matter what I do, everything feels dark and empty. It is hard to get out of bed.', timestamp: '2026-06-08T14:32:00', reason: 'High Risk Alert (PHQ-2)' },
-    { id: 202, student: 'Bob Smith', text: 'Stressed about the upcoming finals, feeling extremely burned out. Havent slept in 48 hours.', timestamp: '2026-06-08T15:10:00', reason: 'Burnout Threshold Exceeded' }
-  ]);
-
+  const [pendingCounsellors, setPendingCounsellors] = useState<PendingCounsellor[]>([]);
+  const [reportedJournals, setReportedJournals] = useState<ReportedJournal[]>([]);
+  const [alertsList, setAlertsList] = useState<any[]>([]);
   const [storageAlert, setStorageAlert] = useState({
     percent: 82,
     details: 'Daily journal image store is approaching capacity. Unused logs can be archived.',
@@ -49,29 +41,84 @@ const AdminDashboard: React.FC = () => {
   const [usersList, setUsersList] = useState<any[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
 
-  useEffect(() => {
-    if (activeTab === 'users') {
+  const fetchDashboardData = async () => {
+    try {
       setLoadingUsers(true);
-      api.get('/users/')
-        .then(res => setUsersList(res.data))
-        .catch(err => console.error(err))
-        .finally(() => setLoadingUsers(false));
+      const pendingRes = await api.get('/users/pending-counsellors');
+      setPendingCounsellors(pendingRes.data);
+      
+      const flaggedRes = await api.get('/journal/flagged');
+      setReportedJournals(flaggedRes.data);
+      
+      const alertsRes = await api.get('/checkin/alerts');
+      setAlertsList(alertsRes.data);
+
+      const usersRes = await api.get('/users/');
+      setUsersList(usersRes.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingUsers(false);
     }
-  }, [activeTab]);
-
-  const handleApproveCounsellor = (id: number) => {
-    setPendingCounsellors(prev => prev.filter(c => c.id !== id));
-    alert('Counsellor approved successfully.');
   };
 
-  const handleRejectCounsellor = (id: number) => {
-    setPendingCounsellors(prev => prev.filter(c => c.id !== id));
-    alert('Application rejected.');
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const handleApproveCounsellor = async (id: number) => {
+    try {
+      await api.put(`/users/${id}/approve`);
+      alert('Counsellor approved successfully.');
+      fetchDashboardData();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to approve counsellor.');
+    }
   };
 
-  const handleDismissReport = (id: number) => {
-    setReportedJournals(prev => prev.filter(r => r.id !== id));
-    alert('Journal report dismissed.');
+  const handleRejectCounsellor = async (id: number) => {
+    try {
+      await api.put(`/users/${id}/reject`);
+      alert('Application rejected.');
+      fetchDashboardData();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to reject application.');
+    }
+  };
+
+  const handleDismissReport = async (id: number) => {
+    try {
+      await api.put(`/journal/flagged/${id}/dismiss`);
+      alert('Journal report dismissed.');
+      fetchDashboardData();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to dismiss report.');
+    }
+  };
+
+  const handleDeleteJournal = async (id: number) => {
+    try {
+      await api.delete(`/journal/${id}`);
+      alert('Journal entry deleted.');
+      fetchDashboardData();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete journal entry.');
+    }
+  };
+
+  const handleResolveAlert = async (id: number) => {
+    try {
+      await api.put(`/checkin/alerts/${id}/resolve`);
+      alert('Risk alert resolved.');
+      fetchDashboardData();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to resolve alert.');
+    }
   };
 
   const handlePurgeLogs = () => {
@@ -216,21 +263,29 @@ const AdminDashboard: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                 {/* Card 1 */}
                 <div className="bg-[#121214] p-5 rounded-2xl border border-zinc-800">
-                  <span className="text-3xl font-bold text-white block">1,284</span>
+                  <span className="text-3xl font-bold text-white block">{usersList.length}</span>
                   <span className="text-[11px] text-zinc-500 block mt-1 uppercase tracking-wide">Total users</span>
-                  <span className="text-xs text-green-500 font-semibold mt-2 block">+12 this week</span>
+                  <span className="text-xs text-green-500 font-semibold mt-2 block">active directory</span>
                 </div>
                 {/* Card 2 */}
                 <div className="bg-[#121214] p-5 rounded-2xl border border-zinc-800">
-                  <span className="text-3xl font-bold text-white block">47</span>
+                  <span className="text-3xl font-bold text-white block">
+                    {usersList.filter(u => u.role === 'counsellor' && u.is_approved).length}
+                  </span>
                   <span className="text-[11px] text-zinc-500 block mt-1 uppercase tracking-wide">Counsellors</span>
-                  <span className="text-xs text-green-500 font-semibold mt-2 block">+3 pending</span>
+                  <span className="text-xs text-green-500 font-semibold mt-2 block">
+                    +{pendingCounsellors.length} pending
+                  </span>
                 </div>
                 {/* Card 3 */}
                 <div className="bg-[#121214] p-5 rounded-2xl border border-zinc-800">
-                  <span className="text-3xl font-bold text-white block">8</span>
+                  <span className="text-3xl font-bold text-white block">
+                    {alertsList.length + reportedJournals.length}
+                  </span>
                   <span className="text-[11px] text-zinc-500 block mt-1 uppercase tracking-wide">Active flags</span>
-                  <span className="text-xs text-red-500 font-semibold mt-2 block">2 high risk</span>
+                  <span className="text-xs text-red-500 font-semibold mt-2 block">
+                    {alertsList.filter(a => a.score >= 4).length} high risk
+                  </span>
                 </div>
                 {/* Card 4 */}
                 <div className="bg-[#121214] p-5 rounded-2xl border border-zinc-800">
@@ -423,20 +478,29 @@ const AdminDashboard: React.FC = () => {
               </div>
 
               <div className="bg-[#121214] border border-zinc-800 rounded-2xl p-6 divide-y divide-zinc-800 space-y-4">
-                <div className="pt-2 flex items-center justify-between">
-                  <div>
-                    <h4 className="font-bold text-white flex items-center gap-2"><ShieldAlert size={14} className="text-red-500"/> Student: Alice Johnson</h4>
-                    <p className="text-xs text-zinc-500 mt-1">Severity: <span className="text-red-500 font-semibold">High Risk</span> | Flagged on 2026-06-08</p>
-                  </div>
-                  <span className="bg-red-950 text-red-400 px-3 py-1 rounded-full text-xs font-bold">Unassigned</span>
-                </div>
-                <div className="pt-4 flex items-center justify-between">
-                  <div>
-                    <h4 className="font-bold text-white flex items-center gap-2"><ShieldAlert size={14} className="text-red-500"/> Student: Bob Smith</h4>
-                    <p className="text-xs text-zinc-500 mt-1">Severity: <span className="text-orange-500 font-semibold">Medium Risk</span> | Flagged on 2026-06-08</p>
-                  </div>
-                  <span className="bg-red-950 text-red-400 px-3 py-1 rounded-full text-xs font-bold">Unassigned</span>
-                </div>
+                {alertsList.length === 0 ? (
+                  <div className="py-6 text-zinc-500 text-center text-sm">No active risk flags.</div>
+                ) : (
+                  alertsList.map((alert) => (
+                    <div key={alert.id} className="pt-4 pb-2 flex items-center justify-between gap-4">
+                      <div>
+                        <h4 className="font-bold text-white flex items-center gap-2">
+                          <ShieldAlert size={14} className="text-red-500"/> Student: {alert.studentName}
+                        </h4>
+                        <p className="text-xs text-zinc-500 mt-1">
+                          Severity: <span className="text-red-500 font-semibold">{alert.score >= 4 ? 'High Risk' : 'Medium Risk'}</span> | Flagged on {new Date(alert.timestamp).toLocaleDateString()}
+                        </p>
+                        <p className="text-xs text-zinc-400 mt-1">{alert.reason}</p>
+                      </div>
+                      <button
+                        onClick={() => handleResolveAlert(alert.id)}
+                        className="px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-semibold shrink-0"
+                      >
+                        Resolve
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -476,7 +540,7 @@ const AdminDashboard: React.FC = () => {
                           Dismiss Flag
                         </button>
                         <button
-                          onClick={() => handleDismissReport(rep.id)}
+                          onClick={() => handleDeleteJournal(rep.id)}
                           className="px-4 py-2 bg-red-900 hover:bg-red-800 text-white rounded-lg text-xs font-bold"
                         >
                           Delete Entry
@@ -631,7 +695,7 @@ const AdminDashboard: React.FC = () => {
                         Dismiss Report
                       </button>
                       <button
-                        onClick={() => handleDismissReport(r.id)}
+                        onClick={() => handleDeleteJournal(r.id)}
                         className="px-3 py-1.5 bg-red-900 hover:bg-red-800 text-white rounded text-xs font-semibold"
                       >
                         Delete Journal

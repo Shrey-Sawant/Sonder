@@ -39,15 +39,47 @@ const ProgressRing = ({ radius, stroke, progress, color, label }: { radius: numb
 // --- Counsellor Dashboard View ---
 const CounsellorDashboard: React.FC<DashboardProps> = ({ setView }) => {
   const { user } = useAuth();
-  const [caseloadCount, setCaseloadCount] = useState(5);
+  const [caseloadCount, setCaseloadCount] = useState(0);
   const [pendingRequests, setPendingRequests] = useState(0);
+  const [activeFlagsCount, setActiveFlagsCount] = useState(0);
+  const [todaySessionsCount, setTodaySessionsCount] = useState(0);
+  const [activities, setActivities] = useState<any[]>([]);
 
   useEffect(() => {
-    // Load incoming requests count
+    // 1. Fetch caseload count
+    api.get('/users/my-students')
+      .then(res => {
+        setCaseloadCount(res.data.length);
+      })
+      .catch(err => console.error(err));
+
+    // 2. Fetch pending requests and today's sessions
     api.get('/schedule/')
       .then(res => {
         const pending = res.data.filter((a: any) => a.status === 'pending');
         setPendingRequests(pending.length);
+
+        const acceptedToday = res.data.filter((a: any) => {
+          if (a.status !== 'accepted') return false;
+          const apptDate = new Date(a.scheduled_time).toDateString();
+          const today = new Date().toDateString();
+          return apptDate === today;
+        });
+        setTodaySessionsCount(acceptedToday.length);
+      })
+      .catch(err => console.error(err));
+
+    // 3. Fetch active alerts and map to activities
+    api.get('/checkin/alerts')
+      .then(res => {
+        setActiveFlagsCount(res.data.length);
+        const alertActivities = res.data.slice(0, 5).map((a: any) => ({
+          id: a.id,
+          username: a.studentName,
+          text: `Logged a high risk check-in (PHQ-2 score = ${a.score}).`,
+          color: 'bg-red-500'
+        }));
+        setActivities(alertActivities);
       })
       .catch(err => console.error(err));
   }, []);
@@ -73,8 +105,8 @@ const CounsellorDashboard: React.FC<DashboardProps> = ({ setView }) => {
             <span className="text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-wider">At-Risk Flags</span>
             <ShieldAlert className="text-red-500 w-5 h-5 animate-pulse" />
           </div>
-          <span className="text-4xl font-bold text-zinc-900 dark:text-white">8</span>
-          <span className="text-xs text-red-500 font-semibold block mt-1.5">2 high risk alerts active</span>
+          <span className="text-4xl font-bold text-zinc-900 dark:text-white">{activeFlagsCount}</span>
+          <span className="text-xs text-red-500 font-semibold block mt-1.5">{activeFlagsCount} unresolved alerts active</span>
         </div>
 
         <div 
@@ -85,7 +117,7 @@ const CounsellorDashboard: React.FC<DashboardProps> = ({ setView }) => {
             <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Today's Sessions</span>
             <Calendar className="text-indigo-500 w-5 h-5" />
           </div>
-          <span className="text-4xl font-bold text-zinc-900 dark:text-white">3</span>
+          <span className="text-4xl font-bold text-zinc-900 dark:text-white">{todaySessionsCount}</span>
           {pendingRequests > 0 ? (
             <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold block mt-1.5">{pendingRequests} booking requests pending</span>
           ) : (
@@ -112,27 +144,19 @@ const CounsellorDashboard: React.FC<DashboardProps> = ({ setView }) => {
         <div className="lg:col-span-2 bg-white dark:bg-zinc-900 rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 p-6 shadow-sm space-y-4">
           <h3 className="font-bold text-sm text-zinc-400 uppercase tracking-wide">Recent Student Activity</h3>
           <div className="space-y-4">
-            <div className="flex items-start gap-3 text-sm">
-              <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-2 shrink-0"></div>
-              <div>
-                <p className="font-semibold text-zinc-800 dark:text-zinc-200">Alice Johnson</p>
-                <p className="text-xs text-zinc-500 mt-0.5">Logged a high risk check-in (PHQ-2 = 5). Interventions threshold hit.</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 text-sm">
-              <div className="w-1.5 h-1.5 rounded-full bg-zinc-400 mt-2 shrink-0"></div>
-              <div>
-                <p className="font-semibold text-zinc-800 dark:text-zinc-200">Bob Smith</p>
-                <p className="text-xs text-zinc-500 mt-0.5">Submitted a new journal entry. Mood analyzed: Neutral.</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 text-sm">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-2 shrink-0"></div>
-              <div>
-                <p className="font-semibold text-zinc-800 dark:text-zinc-200">Chloe Bennett</p>
-                <p className="text-xs text-zinc-500 mt-0.5">Completed 10 minutes of Grounding Exercises. Streak maintained.</p>
-              </div>
-            </div>
+            {activities.length === 0 ? (
+              <p className="text-xs text-zinc-500">No recent student risk activity logged.</p>
+            ) : (
+              activities.map((act) => (
+                <div key={act.id} className="flex items-start gap-3 text-sm">
+                  <div className={`w-1.5 h-1.5 rounded-full ${act.color} mt-2 shrink-0`}></div>
+                  <div>
+                    <p className="font-semibold text-zinc-800 dark:text-zinc-200">{act.username}</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">{act.text}</p>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -143,7 +167,7 @@ const CounsellorDashboard: React.FC<DashboardProps> = ({ setView }) => {
               <Heart size={16} /> Clinical Tip
             </h3>
             <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed font-light">
-              Stress flags show a 12% rise this week. Keep an eye on student final exam schedules, and recommend the breathing exercises during session sign-offs.
+              Exam stress is a major trigger for students. Recommend box breathing or present-moment grounding exercises during chats or sessions.
             </p>
           </div>
           <button 
@@ -158,6 +182,7 @@ const CounsellorDashboard: React.FC<DashboardProps> = ({ setView }) => {
   );
 };
 
+
 // --- Student Dashboard View ---
 const StudentDashboard: React.FC<DashboardProps> = ({ setView }) => {
   const { user } = useAuth();
@@ -166,15 +191,74 @@ const StudentDashboard: React.FC<DashboardProps> = ({ setView }) => {
   const [q1, setQ1] = useState(0);
   const [q2, setQ2] = useState(0);
   const [checkInResult, setCheckInResult] = useState<any>(null);
-  const [reminderTime, setReminderTime] = useState(localStorage.getItem('reminder_time') || '20:00');
-  const [isReminderSet, setIsReminderSet] = useState(localStorage.getItem('reminder_set') === 'true');
+  const [reminderTime, setReminderTime] = useState('20:00');
+  const [isReminderSet, setIsReminderSet] = useState(false);
 
+  const [journalProgress, setJournalProgress] = useState(0);
+  const [exerciseProgress, setExerciseProgress] = useState(0);
+  const [checkinProgress, setCheckinProgress] = useState(0);
+
+  // 1. Check if user already checked in today
   useEffect(() => {
-     const lastCheckIn = localStorage.getItem('last_checkin_date');
-     const today = new Date().toDateString();
-     if (lastCheckIn !== today) {
-         setShowCheckIn(true);
-     }
+    api.get('/checkin/history')
+      .then(res => {
+        const history = res.data;
+        if (history.length > 0) {
+          const latestDate = new Date(history[0].created_at).toDateString();
+          const today = new Date().toDateString();
+          if (latestDate === today) {
+            setShowCheckIn(false);
+            return;
+          }
+        }
+        setShowCheckIn(true);
+      })
+      .catch(err => {
+        console.error(err);
+        setShowCheckIn(true);
+      });
+  }, []);
+
+  // 2. Fetch today's progress for rings
+  useEffect(() => {
+    const today = new Date().toDateString();
+    
+    api.get('/journal/history')
+      .then(res => {
+        const hasToday = res.data.some((j: any) => new Date(j.timestamp).toDateString() === today);
+        setJournalProgress(hasToday ? 100 : 0);
+      })
+      .catch(err => console.error(err));
+
+    api.get('/exercises/history')
+      .then(res => {
+        const hasToday = res.data.some((e: any) => new Date(e.completed_at).toDateString() === today);
+        setExerciseProgress(hasToday ? 100 : 0);
+      })
+      .catch(err => console.error(err));
+
+    api.get('/checkin/history')
+      .then(res => {
+        const hasToday = res.data.some((c: any) => new Date(c.created_at).toDateString() === today);
+        setCheckinProgress(hasToday ? 100 : 0);
+      })
+      .catch(err => console.error(err));
+  }, [showCheckIn]);
+
+  // 3. Fetch current reminder time
+  useEffect(() => {
+    api.get('/reminders/current')
+      .then(res => {
+        setReminderTime(res.data.time_of_day);
+        setIsReminderSet(true);
+      })
+      .catch(() => {
+        const localTime = localStorage.getItem('reminder_time');
+        if (localTime) {
+          setReminderTime(localTime);
+          setIsReminderSet(localStorage.getItem('reminder_set') === 'true');
+        }
+      });
   }, []);
 
   const handleIntentionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -190,13 +274,11 @@ const StudentDashboard: React.FC<DashboardProps> = ({ setView }) => {
           });
           
           setCheckInResult(res.data);
-          localStorage.setItem('last_checkin_date', new Date().toDateString());
           setShowCheckIn(false);
       } catch(e) {
           console.error(e);
           if ((e as any).response?.status === 429) {
              setShowCheckIn(false);
-             localStorage.setItem('last_checkin_date', new Date().toDateString());
           }
       }
   };
@@ -241,9 +323,9 @@ const StudentDashboard: React.FC<DashboardProps> = ({ setView }) => {
         </div>
         
         <div className="flex gap-6 bg-white/60 dark:bg-zinc-900/60 backdrop-blur-md p-4 rounded-2xl border border-white/20 dark:border-zinc-800 shadow-sm">
-            <ProgressRing radius={30} stroke={4} progress={75} color="#8b5cf6" label="Journal" />
-            <ProgressRing radius={30} stroke={4} progress={40} color="#3b82f6" label="Exercise" />
-            <ProgressRing radius={30} stroke={4} progress={90} color="#10b981" label="Check-in" />
+            <ProgressRing radius={30} stroke={4} progress={journalProgress} color="#8b5cf6" label="Journal" />
+            <ProgressRing radius={30} stroke={4} progress={exerciseProgress} color="#3b82f6" label="Exercise" />
+            <ProgressRing radius={30} stroke={4} progress={checkinProgress} color="#10b981" label="Check-in" />
         </div>
       </header>
 

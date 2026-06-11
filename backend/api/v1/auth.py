@@ -117,6 +117,7 @@ async def register(
             experience=user.experience,
             certification=user.certification,
             is_verified=True,
+            is_approved=True,
         )
         db.add(new_user)
         await db.commit()
@@ -146,7 +147,7 @@ async def register(
     # ONLY send via background task (NO duplicate call)
     send_verification_email(email_str, otp)
 
-    logger.info(f"OTP sent to {email_str}")
+    logger.info(f"OTP sent to {email_str} with code: {otp}")
 
     return {"message": "OTP sent to email. Please verify to complete registration."}
 
@@ -183,6 +184,7 @@ async def verify_email(
         experience=user_data["experience"],
         certification=user_data["certification"],
         is_verified=True,
+        is_approved=False,
     )
 
     db.add(new_user)
@@ -251,6 +253,12 @@ async def login(
         raise HTTPException(
             status_code=403,
             detail="Email not verified",
+        )
+
+    if not user.is_approved:
+        raise HTTPException(
+            status_code=403,
+            detail="Your registration is pending administrator approval.",
         )
 
     token = create_access_token(

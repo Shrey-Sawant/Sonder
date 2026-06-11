@@ -29,6 +29,7 @@ class UserResponse(UserBase):
     rating: float
     is_available: bool
     is_verified: bool
+    is_approved: bool
     created_at: datetime
 
     class Config:
