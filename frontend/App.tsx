@@ -75,6 +75,7 @@ const AppContent: React.FC = () => {
                 {user?.role === 'counsellor' ? (
                   <Routes>
                     <Route path="dashboard" element={<Dashboard setView={(v) => navigate(`/${v}`)} />} />
+                    <Route path="connect" element={<MyStudents />} />
                     <Route path="mystudents" element={<MyStudents />} />
                     <Route path="appointments" element={<Appointments />} />
                     <Route path="sessionnotes" element={<SessionNotes />} />

@@ -26,14 +26,26 @@ const ScheduleModal: React.FC<{
   onClose: () => void;
 }> = ({ counselor, counselorsList, onClose }) => {
   const { user } = useAuth();
-  const [selectedCounselorId, setSelectedCounselorId] = useState(counselor?.id || (counselorsList[0]?.id || ""));
+  const [selectedCounselorId, setSelectedCounselorId] = useState(counselor?.id || "");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
+  useEffect(() => {
+    if (!counselor && counselorsList.length > 0 && !selectedCounselorId) {
+      setSelectedCounselorId(counselorsList[0].id);
+    }
+    if (counselor && counselor.id !== selectedCounselorId) {
+      setSelectedCounselorId(counselor.id);
+    }
+  }, [counselor, counselorsList, selectedCounselorId]);
+
   const handleSchedule = async () => {
-    if (!date || !time || !user || !selectedCounselorId) return;
+    if (!date || !time || !user || !selectedCounselorId) {
+      alert("Please select a counselor, date, and time before booking.");
+      return;
+    }
     try {
       setLoading(true);
       const payload = {
@@ -44,7 +56,7 @@ const ScheduleModal: React.FC<{
       setSuccess(true);
       setTimeout(onClose, 2000);
     } catch (err: any) {
-      alert("This slot might be taken or the request failed.");
+      alert(err?.response?.data?.detail || "This slot might be taken or the request failed.");
     } finally {
       setLoading(false);
     }

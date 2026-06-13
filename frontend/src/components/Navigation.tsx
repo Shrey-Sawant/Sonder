@@ -27,6 +27,7 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView }) => {
 
   const counsellorItems = [
     { id: ViewState.DASHBOARD, icon: Home, label: 'Dashboard' },
+    { id: ViewState.CONNECT, icon: Users, label: 'Connect' },
     { id: ViewState.MY_STUDENTS, icon: GraduationCap, label: 'My Students' },
     { id: ViewState.APPOINTMENTS, icon: Calendar, label: 'Appointments' },
     { id: ViewState.SESSION_NOTES, icon: ClipboardList, label: 'Session Notes' },
