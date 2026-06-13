@@ -4,6 +4,7 @@ from sqlalchemy import select, desc
 from db.session import get_db
 from schemas.user import UserResponse
 from models.user import User
+from models.chat_session import ChatSession
 from models.checkin import CheckIn
 from models.journal import JournalEntry
 from models.exercise import ExerciseCompletion
@@ -63,8 +64,20 @@ async def get_my_students(
 ):
     if current_user.role not in ["counsellor", "admin"]:
         raise HTTPException(status_code=403, detail="Not authorized")
-        
-    result = await db.execute(select(User).where(User.role == "student"))
+
+    if current_user.role == "counsellor":
+        result = await db.execute(
+            select(User)
+            .join(ChatSession, ChatSession.student_id == User.id)
+            .where(
+                ChatSession.counsellor_id == current_user.id,
+                ChatSession.chat_type == "counsellor"
+            )
+            .distinct(User.id)
+        )
+    else:
+        result = await db.execute(select(User).where(User.role == "student"))
+
     students = result.scalars().all()
     
     student_list = []
