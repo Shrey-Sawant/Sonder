@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Search, MessageSquare, AlertCircle, Heart, User, CheckCircle } from 'lucide-react';
 import api from '../services/api';
 import ChatPage from '../components/ChatPage';
@@ -37,6 +37,28 @@ const MyStudents: React.FC = () => {
 
   const filtered = students.filter(s => s.username.toLowerCase().includes(search.toLowerCase()));
 
+  const stats = useMemo(() => {
+    const total = students.length;
+    const activeCount = students.filter(s => s.lastActive !== 'never').length;
+    const highRisk = students.filter(s => s.risk === 'High').length;
+    const mediumRisk = students.filter(s => s.risk === 'Medium').length;
+    const lowRisk = students.filter(s => s.risk === 'Low').length;
+    const sadMood = students.filter(s => s.moodLabel === '😔').length;
+    const neutralMood = students.filter(s => s.moodLabel === '😐').length;
+    const positiveMood = students.filter(s => s.moodLabel === '🙂').length;
+
+    return {
+      total,
+      activeCount,
+      highRisk,
+      mediumRisk,
+      lowRisk,
+      sadMood,
+      neutralMood,
+      positiveMood,
+    };
+  }, [students]);
+
   if (selectedStudent) {
     return (
       <div className="fixed inset-0 z-50 bg-white dark:bg-zinc-950 flex flex-col">
@@ -67,6 +89,29 @@ const MyStudents: React.FC = () => {
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-white">My Students</h1>
         <p className="text-zinc-500 dark:text-zinc-400 mt-1">Manage your active clinical caseload and interventions.</p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+          <p className="text-sm uppercase tracking-[0.3em] text-zinc-400 dark:text-zinc-500">Total Students</p>
+          <p className="mt-4 text-4xl font-bold text-zinc-900 dark:text-white">{stats.total}</p>
+          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">All students in your counsellor caseload</p>
+        </div>
+        <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+          <p className="text-sm uppercase tracking-[0.3em] text-zinc-400 dark:text-zinc-500">Recently Active</p>
+          <p className="mt-4 text-4xl font-bold text-zinc-900 dark:text-white">{stats.activeCount}</p>
+          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Students with at least one recent interaction</p>
+        </div>
+        <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+          <p className="text-sm uppercase tracking-[0.3em] text-zinc-400 dark:text-zinc-500">High Risk</p>
+          <p className="mt-4 text-4xl font-bold text-red-600 dark:text-red-400">{stats.highRisk}</p>
+          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Students flagged high risk by latest check-in</p>
+        </div>
+        <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+          <p className="text-sm uppercase tracking-[0.3em] text-zinc-400 dark:text-zinc-500">Mood Summary</p>
+          <p className="mt-4 text-4xl font-bold text-zinc-900 dark:text-white">{stats.sadMood}</p>
+          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">Sad mood students · {stats.neutralMood} neutral · {stats.positiveMood} positive</p>
+        </div>
       </div>
 
       <div className="relative max-w-md">

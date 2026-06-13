@@ -10,6 +10,8 @@ const BoxBreathing = ({ onComplete }: { onComplete: (duration: number) => void }
   // Ambient Sound picker and playback
   const [soundType, setSoundType] = useState<'rain' | 'ocean' | 'forest'>('rain');
   const [ambientPlaying, setAmbientPlaying] = useState(false);
+  const [voiceGuidanceEnabled, setVoiceGuidanceEnabled] = useState(false);
+  const speechUtterance = useRef<SpeechSynthesisUtterance | null>(null);
   
   // Audio Nodes refs
   const audioCtx = useRef<AudioContext | null>(null);
@@ -259,6 +261,9 @@ const BoxBreathing = ({ onComplete }: { onComplete: (duration: number) => void }
   useEffect(() => {
     return () => {
       stopAmbientNodes();
+      if (speechUtterance.current) {
+        window.speechSynthesis.cancel();
+      }
     };
   }, []);
 
@@ -277,21 +282,68 @@ const BoxBreathing = ({ onComplete }: { onComplete: (duration: number) => void }
     }
   };
 
+  const toggleVoiceGuidance = () => {
+    const isSupported = 'speechSynthesis' in window && typeof window.SpeechSynthesisUtterance === 'function';
+    if (!isSupported) {
+      alert('Voice guidance is not supported in your browser.');
+      return;
+    }
+
+    setVoiceGuidanceEnabled((enabled) => {
+      const next = !enabled;
+      if (!next) {
+        window.speechSynthesis.cancel();
+      }
+      return next;
+    });
+  };
+
+  const announcePhase = (text: string) => {
+    if (!voiceGuidanceEnabled || !('speechSynthesis' in window)) return;
+
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.05;
+      utterance.pitch = 1.0;
+      utterance.volume = 0.9;
+      speechUtterance.current = utterance;
+      window.speechSynthesis.speak(utterance);
+    } catch (error) {
+      console.warn('Speech synthesis failed', error);
+    }
+  };
+
+  useEffect(() => {
+    if (!isActive) return;
+    announcePhase(phase);
+  }, [phase, voiceGuidanceEnabled, isActive]);
+
   return (
     <div className="flex flex-col items-center gap-6 p-8 bg-indigo-50 dark:bg-indigo-950/20 rounded-[2.5rem] border border-indigo-100 dark:border-indigo-900/50">
       <div className="flex justify-between w-full items-center">
         <h3 className="text-xl font-bold flex items-center gap-2"><Wind className="w-5 h-5 text-indigo-500"/> Box Breathing</h3>
         
-        {/* Play Ambient Audio Button */}
-        <button 
-          onClick={toggleAmbient} 
-          className={`p-3 rounded-full shadow-sm transition-all ${
-            ambientPlaying ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
-          }`}
-          title="Play Ambient Background Sounds"
-        >
-          <Music className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={toggleAmbient} 
+            className={`p-3 rounded-full shadow-sm transition-all ${
+              ambientPlaying ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
+            }`}
+            title="Play Ambient Background Sounds"
+          >
+            <Music className="w-5 h-5" />
+          </button>
+          <button
+            onClick={toggleVoiceGuidance}
+            className={`p-3 rounded-full shadow-sm transition-all ${
+              voiceGuidanceEnabled ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
+            }`}
+            title="Toggle voice guidance for breathing cues"
+          >
+            {voiceGuidanceEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+          </button>
+        </div>
       </div>
 
       {/* Sound Type Picker */}
