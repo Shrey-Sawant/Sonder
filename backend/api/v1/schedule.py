@@ -6,23 +6,14 @@ from sqlalchemy import Column, Integer, ForeignKey, String, DateTime, Boolean
 from sqlalchemy.sql import func
 
 # Internal project imports - Ensure these paths match your structure
-from db.session import Base, get_db
+from db.session import get_db
 from models.schedule_request import ScheduleRequest
 from models.user import User
 from schemas.schedule import ScheduleRequestCreate, ScheduleRequestResponse
 from api.deps import get_current_user
+from models.notification import Notification
 
 router = APIRouter()
-
-# --- Internal Notification Model ---
-class Notification(Base):
-    __tablename__ = "notifications"
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    message = Column(String, nullable=False)
-    is_read = Column(Boolean, default=False)
-    created_at = Column(DateTime, server_default=func.now())
 
 # --- Routes ---
 
@@ -101,15 +92,27 @@ async def create_schedule_request(
     )
     db.add(new_request)
 
-    # 3. Notification for Counselor
-    notification = Notification(
-        user_id=c_id,
-        message=f"New appointment request for {request.scheduled_time.strftime('%Y-%m-%d %H:%M')}."
-    )
-    db.add(notification)
-    
     try:
         await db.commit()
+        await db.refresh(new_request)
+    except Exception as e:
+        await db.rollback()
+        print(f"-> DB ERROR: {str(e)}")
+        raise HTTPException(status_code=500, detail="Could not save booking")
+
+    # 3. Notification for Counselor (optional)
+    try:
+        notification = Notification(
+            user_id=c_id,
+            message=f"New appointment request for {request.scheduled_time.strftime('%Y-%m-%d %H:%M')}.",
+        )
+        db.add(notification)
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        print(f"-> Notification insert failed, continuing without notification: {e}")
+
+    try:
         await db.refresh(new_request)
         
         # Load names for response
@@ -212,18 +215,30 @@ async def update_schedule_status(
     old_status = request_obj.status
     request_obj.status = status
     print(f"-> Updating status: {old_status} -> {status}")
-    
+
+    try:
+        await db.commit()
+        await db.refresh(request_obj)
+    except Exception as e:
+        await db.rollback()
+        print(f"-> DB ERROR on update: {e}")
+        raise HTTPException(status_code=500, detail="Update failed")
+
     # Create notification for student
     if status in ["accepted", "declined", "rejected"]:
         print(f"-> Notifying student ID {request_obj.student_id}")
         new_notification = Notification(
             user_id=request_obj.student_id,
-            message=f"Your appointment for {request_obj.scheduled_time.strftime('%Y-%m-%d %H:%M')} has been {status}."
+            message=f"Your appointment for {request_obj.scheduled_time.strftime('%Y-%m-%d %H:%M')} has been {status}.",
         )
         db.add(new_notification)
+        try:
+            await db.commit()
+        except Exception as e:
+            await db.rollback()
+            print(f"-> Notification insert failed, continuing without notification: {e}")
 
     try:
-        await db.commit()
         await db.refresh(request_obj)
         
         # Load names for response
