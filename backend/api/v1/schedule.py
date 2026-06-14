@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, select
 from datetime import date, time, datetime
+from uuid import uuid4
 from sqlalchemy import Column, Integer, ForeignKey, String, DateTime, Boolean
 from sqlalchemy.sql import func
 
@@ -12,6 +13,7 @@ from models.user import User
 from schemas.schedule import ScheduleRequestCreate, ScheduleRequestResponse
 from api.deps import get_current_user
 from models.notification import Notification
+from utils.email import send_email
 
 router = APIRouter()
 
@@ -83,11 +85,13 @@ async def create_schedule_request(
         print(f"-> CONFLICT: Slot already taken by Request ID {conflict.id}")
         raise HTTPException(status_code=400, detail="This time slot is already booked.")
 
-    # 2. Create the entry
+    # 2. Create a meeting room link and save the entry
+    meeting_url = f"https://meet.jit.si/sonder-appointment-{uuid4().hex}"
     new_request = ScheduleRequest(
         student_id=s_id,
         counsellor_id=c_id,
         scheduled_time=request.scheduled_time,
+        video_meeting_url=meeting_url,
         status="pending",
     )
     db.add(new_request)
@@ -111,6 +115,52 @@ async def create_schedule_request(
     except Exception as e:
         await db.rollback()
         print(f"-> Notification insert failed, continuing without notification: {e}")
+
+    # 4. Send appointment reminder emails for request creation
+    try:
+        student_res = await db.execute(select(User).where(User.id == s_id))
+        counsellor_res = await db.execute(select(User).where(User.id == c_id))
+        student = student_res.scalars().first()
+        counsellor = counsellor_res.scalars().first()
+
+        if student and counsellor:
+            template_params = {
+                "to_email": student.email,
+                "reply_to": student.email,
+                "email": student.email,
+                "to": student.email,
+                "to_name": student.username,
+                "recipient_name": student.username,
+                "appointment_time": request.scheduled_time.strftime('%Y-%m-%d %H:%M'),
+                "counsellor_name": counsellor.username,
+                "student_name": student.username,
+                "meeting_url": meeting_url,
+                "meeting_link": meeting_url,
+                "status": "pending",
+                "subject": "Sonder Appointment Request Submitted",
+                "message": f"Your appointment request for {request.scheduled_time.strftime('%Y-%m-%d %H:%M')} has been created. The counselor will confirm it soon.",
+            }
+            background_tasks.add_task(send_email, student.email, "Sonder Appointment Request", template_params)
+
+            counsellor_template_params = {
+                "to_email": counsellor.email,
+                "reply_to": counsellor.email,
+                "email": counsellor.email,
+                "to": counsellor.email,
+                "to_name": counsellor.username,
+                "recipient_name": counsellor.username,
+                "appointment_time": request.scheduled_time.strftime('%Y-%m-%d %H:%M'),
+                "counsellor_name": counsellor.username,
+                "student_name": student.username,
+                "meeting_url": meeting_url,
+                "meeting_link": meeting_url,
+                "status": "pending",
+                "subject": "New Sonder Appointment Request",
+                "message": f"A new appointment request from {student.username} is awaiting your review.",
+            }
+            background_tasks.add_task(send_email, counsellor.email, "New Sonder Appointment Request", counsellor_template_params)
+    except Exception as e:
+        print(f"-> Email task scheduling failed: {e}")
 
     try:
         await db.refresh(new_request)
@@ -192,6 +242,7 @@ async def get_schedule_requests(
 async def update_schedule_status(
     request_id: int,
     status: str,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -237,6 +288,53 @@ async def update_schedule_status(
         except Exception as e:
             await db.rollback()
             print(f"-> Notification insert failed, continuing without notification: {e}")
+
+        # Send confirmation / reminder emails once status changes
+        try:
+            student_res = await db.execute(select(User).where(User.id == request_obj.student_id))
+            counsellor_res = await db.execute(select(User).where(User.id == request_obj.counsellor_id))
+            student = student_res.scalars().first()
+            counsellor = counsellor_res.scalars().first()
+
+            if student and counsellor:
+                appointment_time = request_obj.scheduled_time.strftime('%Y-%m-%d %H:%M')
+                template_params = {
+                    "to_email": student.email,
+                    "reply_to": student.email,
+                    "email": student.email,
+                    "to": student.email,
+                    "to_name": student.username,
+                    "recipient_name": student.username,
+                    "appointment_time": appointment_time,
+                    "counsellor_name": counsellor.username,
+                    "student_name": student.username,
+                    "meeting_url": request_obj.video_meeting_url,
+                    "meeting_link": request_obj.video_meeting_url,
+                    "status": status,
+                    "subject": f"Sonder Appointment {status.title()}",
+                    "message": f"Your appointment on {appointment_time} has been {status}.",
+                }
+                background_tasks.add_task(send_email, student.email, f"Sonder Appointment {status.title()}", template_params)
+
+                counsellor_template_params = {
+                    "to_email": counsellor.email,
+                    "reply_to": counsellor.email,
+                    "email": counsellor.email,
+                    "to": counsellor.email,
+                    "to_name": counsellor.username,
+                    "recipient_name": counsellor.username,
+                    "appointment_time": appointment_time,
+                    "counsellor_name": counsellor.username,
+                    "student_name": student.username,
+                    "meeting_url": request_obj.video_meeting_url,
+                    "meeting_link": request_obj.video_meeting_url,
+                    "status": status,
+                    "subject": f"Appointment {status.title()} Notification",
+                    "message": f"Appointment for {student.username} on {appointment_time} has been {status}.",
+                }
+                background_tasks.add_task(send_email, counsellor.email, f"Appointment {status.title()} Notification", counsellor_template_params)
+        except Exception as e:
+            print(f"-> Email task scheduling failed on status update: {e}")
 
     try:
         await db.refresh(request_obj)

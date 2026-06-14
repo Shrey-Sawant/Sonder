@@ -16,6 +16,7 @@ import SessionNotes from './src/pages/SessionNotes';
 import Analytics from './src/pages/Analytics';
 import Alerts from './src/pages/Alerts';
 import AdminDashboard from './src/pages/AdminDashboard';
+import CounsellorChatDashboard from './src/components/CounsellorChatDashboard';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -53,19 +54,19 @@ const AppContent: React.FC = () => {
 
       <Route path="/*" element={
         <ProtectedRoute>
-          <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 font-sans text-zinc-900 dark:text-zinc-100 flex">
+          <div className="min-h-screen bg-[#fbfbfe] dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans flex transition-colors duration-300">
             {/* Sidebar Navigation */}
             <Navigation currentView={currentPath} setView={(v) => navigate(`/${v}`)} />
 
             <main className="flex-1 md:ml-20 lg:ml-64 min-h-screen flex flex-col relative">
               {/* Header */}
-              <header className="sticky top-0 z-40 bg-zinc-50/80 dark:bg-zinc-950/80 backdrop-blur-md p-4 flex justify-between items-center border-b border-zinc-200 dark:border-zinc-800">
+              <header className="sticky top-0 z-40 bg-white/85 dark:bg-zinc-950/95 backdrop-blur-xl p-4 flex justify-between items-center shadow-sm transition-colors duration-300">
                 <div className="md:hidden flex items-center gap-2">
                   <div className="w-6 h-6 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-full"></div>
                   <span className="font-bold text-xl tracking-tighter">Sonder.</span>
                 </div>
                 <div className="ml-auto flex gap-4 items-center">
-                  <button onClick={logout} className="text-xs font-medium text-zinc-500 hover:text-red-500 transition-colors">Logout</button>
+                  <button onClick={logout} className="text-xs font-medium text-zinc-500 dark:text-zinc-300 hover:text-red-500 dark:hover:text-red-400 transition-colors">Logout</button>
                   <ThemeToggle />
                 </div>
               </header>
@@ -75,7 +76,7 @@ const AppContent: React.FC = () => {
                 {user?.role === 'counsellor' ? (
                   <Routes>
                     <Route path="dashboard" element={<Dashboard setView={(v) => navigate(`/${v}`)} />} />
-                    <Route path="connect" element={<MyStudents />} />
+                    <Route path="connect" element={<CounsellorChatDashboard />} />
                     <Route path="mystudents" element={<MyStudents />} />
                     <Route path="appointments" element={<Appointments />} />
                     <Route path="sessionnotes" element={<SessionNotes />} />

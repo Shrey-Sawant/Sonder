@@ -149,15 +149,15 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login' }) => {
         return (
             <>
                 <Modal {...modal} onClose={closeModal} />
-                <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-orange-50 via-white to-rose-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950 p-4">
-                    <div className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl p-8 border border-zinc-100 dark:border-zinc-800">
+                <div className="flex flex-col items-center justify-center min-h-screen bg-[#f8f6ff] p-4">
+                    <div className="w-full max-w-xl bg-white rounded-[32px] shadow-[0_30px_70px_rgba(15,23,42,0.08)] p-10 border border-[#ece9ff] animate-fade-soft">
                         <div className="text-center mb-6">
-                            <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-rose-500 rounded-2xl mx-auto mb-4 flex items-center justify-center">
-                                <span className="text-3xl">✉️</span>
+                            <div className="w-20 h-20 bg-gradient-to-tr from-[#dbeafe] to-[#fde2e1] rounded-[28px] mx-auto mb-4 flex items-center justify-center shadow-sm">
+                                <span className="text-4xl">✉️</span>
                             </div>
-                            <h2 className="text-2xl font-bold text-zinc-900 dark:text-white">Verify Your Email</h2>
-                            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-                                Enter the OTP sent to <span className="font-semibold text-orange-600">{formData.email}</span>
+                            <h2 className="text-4xl font-semibold text-zinc-900">Verify Your Email</h2>
+                            <p className="mt-3 text-base text-zinc-500 max-w-xl mx-auto leading-7">
+                                Enter the OTP sent to <span className="font-semibold text-[#7c3aed]">{formData.email}</span> so we can keep your Sonder experience safe.
                             </p>
                         </div>
 
@@ -167,7 +167,7 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login' }) => {
                                 value={formData.email}
                                 onChange={handleChange}
                                 placeholder="Email"
-                                className="w-full p-3 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-transparent focus:outline-none focus:ring-2 focus:ring-orange-500 dark:text-white"
+                                className="w-full p-4 bg-[#fbfbfe] border border-[#e5e7ff] rounded-[20px] focus:outline-none focus:ring-2 focus:ring-[#c7d2fe] text-zinc-900"
                                 required
                             />
                             <input
@@ -175,13 +175,13 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login' }) => {
                                 value={formData.otp}
                                 onChange={handleChange}
                                 placeholder="Enter 6-digit OTP"
-                                className="w-full p-3 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-transparent focus:outline-none focus:ring-2 focus:ring-orange-500 dark:text-white text-center text-2xl tracking-widest font-mono"
+                                className="w-full p-4 bg-[#fbfbfe] border border-[#e5e7ff] rounded-[20px] focus:outline-none focus:ring-2 focus:ring-[#c7d2fe] text-center text-2xl tracking-widest font-mono text-zinc-900"
                                 maxLength={6}
                                 required
                             />
                             <button
                                 disabled={loading}
-                                className="w-full bg-gradient-to-r from-orange-500 to-rose-500 text-white p-3 rounded-xl font-semibold hover:from-orange-600 hover:to-rose-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-full rounded-[24px] bg-gradient-to-r from-[#c7d2fe] via-[#e9d5ff] to-[#fed7aa] text-zinc-950 p-4 font-semibold shadow-lg shadow-[#c7d2fe]/20 hover:opacity-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {loading ? 'Verifying...' : 'Verify Email'}
                             </button>
@@ -195,28 +195,28 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login' }) => {
     return (
         <>
             <Modal {...modal} onClose={closeModal} />
-            <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-orange-50 via-white to-rose-50 dark:from-zinc-950 dark:via-zinc-900 dark:to-zinc-950 p-4">
-                <div className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl p-8 border border-zinc-100 dark:border-zinc-800">
+            <div className="flex flex-col items-center justify-center min-h-screen bg-[#f8f6ff] p-4">
+                <div className="w-full max-w-xl bg-white rounded-[32px] shadow-[0_30px_70px_rgba(15,23,42,0.08)] p-10 border border-[#ece9ff] animate-fade-soft">
                     <div className="text-center mb-8">
-                        <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-rose-500 rounded-2xl mx-auto mb-4 flex items-center justify-center">
-                            <span className="text-3xl font-bold text-white">S</span>
+                        <div className="w-20 h-20 bg-gradient-to-tr from-[#dbeafe] to-[#fde2e1] rounded-[28px] mx-auto mb-4 flex items-center justify-center shadow-sm">
+                            <span className="text-4xl font-bold text-[#4f46e5]">S</span>
                         </div>
-                        <h2 className="text-3xl font-bold text-zinc-900 dark:text-white">
+                        <h2 className="text-4xl font-semibold text-zinc-900">
                             {isLogin ? 'Welcome Back' : 'Join Sonder'}
                         </h2>
-                        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                        <p className="mt-3 text-base text-zinc-500 max-w-lg mx-auto leading-7">
                             {isLogin ? 'Continue your wellness journey' : 'Start your mental wellness journey'}
                         </p>
                     </div>
 
-                    <div className="flex mb-6 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl">
+                    <div className="flex mb-6 bg-[#f5f3ff] p-1 rounded-[24px] shadow-sm">
                         {(['student', 'counsellor', 'admin'] as const).map((role) => (
                             <button
                                 key={role}
                                 onClick={() => setActiveTab(role)}
-                                className={`flex-1 py-2.5 text-sm font-medium rounded-lg capitalize transition-all ${activeTab === role
-                                    ? 'bg-white dark:bg-zinc-700 shadow-md text-orange-600 dark:text-orange-400'
-                                    : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+                                className={`flex-1 py-3 text-sm font-medium rounded-[20px] capitalize transition-all ${activeTab === role
+                                    ? 'bg-white shadow-sm text-[#7c3aed]'
+                                    : 'text-zinc-500 hover:text-zinc-700'
                                     }`}
                             >
                                 {role}
@@ -231,7 +231,7 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login' }) => {
                             value={formData.email}
                             onChange={handleChange}
                             placeholder="Email Address"
-                            className="w-full p-3 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-transparent focus:outline-none focus:ring-2 focus:ring-orange-500 dark:text-white"
+                            className="w-full p-4 bg-[#fbfbfe] border border-[#e5e7ff] rounded-[22px] focus:outline-none focus:ring-2 focus:ring-[#c7d2fe] text-zinc-900"
                             required
                         />
 
@@ -241,7 +241,7 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login' }) => {
                                 value={formData.username}
                                 onChange={handleChange}
                                 placeholder="Username"
-                                className="w-full p-3 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-transparent focus:outline-none focus:ring-2 focus:ring-orange-500 dark:text-white"
+                                className="w-full p-4 bg-[#fbfbfe] border border-[#e5e7ff] rounded-[22px] focus:outline-none focus:ring-2 focus:ring-[#c7d2fe] text-zinc-900"
                                 required
                             />
                         )}
@@ -252,7 +252,7 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login' }) => {
                             value={formData.password}
                             onChange={handleChange}
                             placeholder="Password"
-                            className="w-full p-3 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-transparent focus:outline-none focus:ring-2 focus:ring-orange-500 dark:text-white"
+                            className="w-full p-4 bg-[#fbfbfe] border border-[#e5e7ff] rounded-[22px] focus:outline-none focus:ring-2 focus:ring-[#c7d2fe] text-zinc-900"
                             required
                         />
 

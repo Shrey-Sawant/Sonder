@@ -23,7 +23,7 @@ const ThemeToggle: React.FC = () => {
   return (
     <button
       onClick={() => setIsDark(!isDark)}
-      className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 transition-all hover:scale-105 active:scale-95"
+      className="p-2 rounded-[18px] bg-white shadow-sm text-zinc-700 transition-all hover:bg-[#f3f4ff] dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700 active:scale-[0.98]"
     >
       {isDark ? <Sun size={20} /> : <Moon size={20} />}
     </button>

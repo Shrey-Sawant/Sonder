@@ -16,6 +16,7 @@ class ScheduleRequest(Base):
     )
 
     scheduled_time = Column(DateTime, nullable=False)
+    video_meeting_url = Column(String(length=1024), nullable=True)
 
     status = Column(String, default="pending")
     # pending | accepted | rejected

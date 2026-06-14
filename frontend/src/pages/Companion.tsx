@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Sparkles, AlertTriangle } from 'lucide-react';
 import { Message } from '../../types';
 import api from '../services/api';
+import FriendlyCompanion from '../components/FriendlyCompanion';
 
 const Companion: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
@@ -68,28 +69,26 @@ const Companion: React.FC = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-2rem)] md:h-[calc(100vh-4rem)] flex flex-col rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
+    <div className="h-[calc(100vh-2rem)] md:h-[calc(100vh-4rem)] flex flex-col rounded-[32px] bg-[#fbfbfe] border border-[#e5e7ff] overflow-hidden shadow-[0_28px_70px_rgba(15,23,42,0.08)]">
       {/* Chat Header */}
-      <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md flex justify-between items-center sticky top-0 z-10">
+      <div className="p-4 bg-white/90 backdrop-blur-xl flex justify-between items-center sticky top-0 z-10 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
-            <Sparkles size={20} />
+          <div className="w-12 h-12 rounded-[24px] bg-gradient-to-tr from-[#ede9fe] to-[#dbeafe] flex items-center justify-center shadow-sm">
+            <Sparkles size={20} className="text-[#4f46e5]" />
           </div>
           <div>
-            <h2 className="font-bold text-zinc-900 dark:text-white">Sonder AI</h2>
-            <p className="text-xs text-zinc-500 flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+            <h2 className="font-semibold text-zinc-900 text-xl">Sonder AI</h2>
+            <p className="text-xs text-zinc-500 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
               Online & Listening
             </p>
           </div>
         </div>
-        <div className="bg-zinc-100 dark:bg-zinc-800 px-3 py-1 rounded-full text-xs text-zinc-500 font-medium flex items-center gap-1">
-          <AlertTriangle size={12} /> Not for emergencies
-        </div>
+        <FriendlyCompanion className="w-20 h-20 hidden md:flex" />
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-zinc-50/50 dark:bg-zinc-950/50">
+      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-[#f8f6ff]">
         {messages.map((msg) => (
           <div
             key={msg.id}
@@ -131,25 +130,25 @@ const Companion: React.FC = () => {
       </div>
 
       {/* Input Area */}
-      <div className="p-4 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800">
+      <div className="p-4 bg-white rounded-b-[32px] shadow-inner border-t border-[#e5e7ff]">
         <div className="relative max-w-4xl mx-auto flex items-center gap-2">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Share what's on your mind..."
-            className="w-full bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white placeholder-zinc-400 rounded-2xl pl-4 pr-12 py-3 md:py-4 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50 h-[56px] max-h-32 scrollbar-hide"
+            className="w-full bg-white border border-[#e5e7ff] text-zinc-900 placeholder-zinc-400 rounded-[24px] pl-5 pr-16 py-4 resize-none focus:outline-none focus:ring-2 focus:ring-[#c7d2fe] h-[56px] max-h-32"
             rows={1}
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || isLoading}
-            className="absolute right-2 p-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="absolute right-2 p-3 bg-gradient-to-r from-[#c7d2fe] to-[#fbcfe8] text-zinc-950 rounded-[18px] hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
             <Send size={20} />
           </button>
         </div>
-        <p className="text-center text-[10px] text-zinc-400 mt-2">
+        <p className="text-center text-[10px] text-zinc-400 mt-3">
           Sonder is an AI assistant and can make mistakes. Always consult a professional for medical advice.
         </p>
       </div>

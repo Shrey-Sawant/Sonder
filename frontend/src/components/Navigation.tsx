@@ -40,51 +40,51 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView }) => {
   return (
     <>
       {/* Desktop Sidebar */}
-      <nav className="hidden md:flex flex-col w-20 lg:w-64 h-screen border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 fixed left-0 top-0 z-50">
-        <div className="p-6 flex items-center gap-3">
-          <div className="w-8 h-8 bg-gradient-to-tr from-orange-400 to-rose-500 rounded-full animate-pulse-slow shadow-lg shadow-orange-500/20"></div>
-          <span className="hidden lg:block font-bold text-2xl tracking-tighter text-zinc-900 dark:text-white">Sonder.</span>
+      <nav className="hidden md:flex flex-col w-20 lg:w-64 h-screen bg-[#faf7ff] dark:bg-zinc-950 fixed left-0 top-0 z-50 shadow-sm transition-colors duration-300">
+        <div className="p-6 flex items-center gap-3 bg-white/80 dark:bg-zinc-900/90 rounded-br-[2rem] shadow-sm transition-colors duration-300">
+          <div className="w-10 h-10 bg-gradient-to-tr from-[#c7d2fe] to-[#fde2e1] rounded-2xl animate-pulse-soft shadow-lg shadow-[#c7d2fe]/20"></div>
+          <span className="hidden lg:block font-semibold text-2xl tracking-tight text-zinc-900">Sonder</span>
         </div>
 
-        <div className="flex-1 flex flex-col gap-2 p-4">
+        <div className="flex-1 flex flex-col gap-3 p-4">
           {navItems.map((item) => (
             <button
               key={item.id}
               onClick={() => setView(item.id)}
-              className={`flex items-center gap-4 p-3 rounded-xl transition-all duration-200 group ${currentView === item.id
-                  ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-lg'
-                  : 'text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800/50'
+              className={`flex items-center gap-4 p-3 rounded-[18px] transition-all duration-300 ${currentView === item.id
+                  ? 'bg-white text-indigo-700 shadow-sm'
+                  : 'text-zinc-500 hover:bg-white/90'
                 }`}
             >
-              <item.icon className={`w-6 h-6 ${currentView === item.id ? 'stroke-[2.5px]' : 'stroke-[2px]'}`} />
+              <item.icon className={`w-6 h-6 ${currentView === item.id ? 'stroke-[2.5px]' : 'stroke-[1.8px]'}`} />
               <span className="hidden lg:block font-medium text-sm">{item.label}</span>
             </button>
           ))}
         </div>
 
-        <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
-          <div className="flex items-center gap-4 p-3 text-zinc-500 dark:text-zinc-400">
-            <div className="w-8 h-8 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
+        <div className="p-4 bg-white/80 dark:bg-zinc-900/90 rounded-t-[2rem] transition-colors duration-300">
+          <div className="flex items-center gap-3 p-3 rounded-3xl bg-[#f9f8ff] dark:bg-zinc-900/70 shadow-sm transition-colors duration-300">
+            <div className="w-10 h-10 rounded-full bg-[#e7e3ff] overflow-hidden">
               <img src="https://picsum.photos/100/100?grayscale" alt="User" className="w-full h-full object-cover opacity-80" />
             </div>
             <div className="hidden lg:block">
-              <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-200">{user?.username || 'User'}</p>
-              <p className="text-[10px] capitalize">{user?.role || 'Member'}</p>
+              <p className="text-xs font-semibold text-zinc-900">{user?.username || 'User'}</p>
+              <p className="text-[10px] capitalize text-zinc-500">{user?.role || 'Member'}</p>
             </div>
           </div>
         </div>
       </nav>
 
       {/* Mobile Bottom Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white/90 dark:bg-zinc-950/90 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 z-50 pb-safe">
+      <nav className="md:hidden fixed bottom-0 left-0 w-full bg-white/95 dark:bg-zinc-950/95 backdrop-blur-xl border-t border-slate-200 dark:border-zinc-800 z-50 pb-safe transition-colors duration-300">
         <div className="flex justify-around items-center p-4">
           {navItems.map((item) => (
             <button
               key={item.id}
               onClick={() => setView(item.id)}
               className={`flex flex-col items-center gap-1 transition-colors ${currentView === item.id
-                  ? 'text-orange-600 dark:text-orange-400'
-                  : 'text-zinc-400 dark:text-zinc-500'
+                  ? 'text-indigo-700'
+                  : 'text-zinc-400'
                 }`}
             >
               <item.icon className="w-6 h-6" />
