@@ -130,25 +130,25 @@ const Companion: React.FC = () => {
       </div>
 
       {/* Input Area */}
-      <div className="p-4 bg-white rounded-b-[32px] shadow-inner border-t border-[#e5e7ff]">
+      <div className="p-4 bg-white dark:bg-zinc-900 rounded-b-[32px] shadow-inner border-t border-[#e5e7ff] dark:border-zinc-800">
         <div className="relative max-w-4xl mx-auto flex items-center gap-2">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Share what's on your mind..."
-            className="w-full bg-white border border-[#e5e7ff] text-zinc-900 placeholder-zinc-400 rounded-[24px] pl-5 pr-16 py-4 resize-none focus:outline-none focus:ring-2 focus:ring-[#c7d2fe] h-[56px] max-h-32"
+            className="w-full bg-white dark:bg-zinc-800 border border-[#e5e7ff] dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-400 rounded-[24px] pl-5 pr-16 py-4 resize-none focus:outline-none focus:ring-2 focus:ring-[#c7d2fe] dark:focus:ring-[#6366f1] h-[56px] max-h-32"
             rows={1}
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || isLoading}
-            className="absolute right-2 p-3 bg-gradient-to-r from-[#c7d2fe] to-[#fbcfe8] text-zinc-950 rounded-[18px] hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="absolute right-2 p-3 bg-gradient-to-r from-[#c7d2fe] to-[#fbcfe8] text-zinc-950 dark:text-white rounded-[18px] hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
             <Send size={20} />
           </button>
         </div>
-        <p className="text-center text-[10px] text-zinc-400 mt-3">
+        <p className="text-center text-[10px] text-zinc-400 dark:text-zinc-400 mt-3">
           Sonder is an AI assistant and can make mistakes. Always consult a professional for medical advice.
         </p>
       </div>
