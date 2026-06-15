@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
-import logoLight from '../assest/Logo_with_name_light_mode.png';
-import logoDark from '../assest/Logo_with_name_dark_mode.png';
+import logoLight from '../assest/Logo_light_mode.png';
+import logoDark from '../assest/Logo_dark_mode.png';
 
 interface AuthProps {
     initialMode?: 'login' | 'signup' | 'verify';

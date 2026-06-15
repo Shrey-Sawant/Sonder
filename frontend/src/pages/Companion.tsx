@@ -69,16 +69,16 @@ const Companion: React.FC = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-2rem)] md:h-[calc(100vh-4rem)] flex flex-col rounded-[32px] bg-[#fbfbfe] border border-[#e5e7ff] overflow-hidden shadow-[0_28px_70px_rgba(15,23,42,0.08)]">
+    <div className="h-[calc(100vh-2rem)] md:h-[calc(100vh-4rem)] flex flex-col rounded-[32px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-[0_28px_70px_rgba(15,23,42,0.08)]">
       {/* Chat Header */}
-      <div className="p-4 bg-white/90 backdrop-blur-xl flex justify-between items-center sticky top-0 z-10 shadow-sm">
+      <div className="p-4 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-xl flex justify-between items-center sticky top-0 z-10 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-[24px] bg-gradient-to-tr from-[#ede9fe] to-[#dbeafe] flex items-center justify-center shadow-sm">
             <Sparkles size={20} className="text-[#4f46e5]" />
           </div>
           <div>
-            <h2 className="font-semibold text-zinc-900 text-xl">Sonder AI</h2>
-            <p className="text-xs text-zinc-500 flex items-center gap-2">
+            <h2 className="font-semibold text-zinc-900 dark:text-white text-xl">Sonder AI</h2>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
               Online & Listening
             </p>
@@ -88,7 +88,7 @@ const Companion: React.FC = () => {
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-[#f8f6ff]">
+      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-[#f8f6ff] dark:bg-zinc-900">
         {messages.map((msg) => (
           <div
             key={msg.id}
@@ -102,7 +102,7 @@ const Companion: React.FC = () => {
                 {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
               </div>
               <div className={`p-4 rounded-2xl text-sm md:text-base leading-relaxed whitespace-pre-wrap ${msg.role === 'user'
-                  ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-tr-none'
+                  ? 'bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 rounded-tr-none'
                   : 'bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-tl-none shadow-sm'
                 }`}>
                 {msg.text}
