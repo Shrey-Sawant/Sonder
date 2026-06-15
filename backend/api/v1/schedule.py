@@ -3,8 +3,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, select
 from datetime import date, time, datetime
 from uuid import uuid4
-from sqlalchemy import Column, Integer, ForeignKey, String, DateTime, Boolean
-from sqlalchemy.sql import func
+
+# Internal project imports - Ensure these paths match your structure
+from db.session import get_db
+from models.schedule_request import ScheduleRequest
+from models.user import User
+from schemas.schedule import ScheduleRequestCreate, ScheduleRequestResponse
+from api.deps import get_current_user
+from models.notification import Notification
+from utils.email import send_email
 
 # Internal project imports - Ensure these paths match your structure
 from db.session import get_db
@@ -53,6 +60,7 @@ async def get_busy_slots(
 @router.post("/", response_model=ScheduleRequestResponse, status_code=status.HTTP_201_CREATED)
 async def create_schedule_request(
     request: ScheduleRequestCreate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):

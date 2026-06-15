@@ -32,15 +32,31 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 50px;
-      height: 50px;
-      background-color: rgba(255, 255, 255, 0.2);
-      border-radius: 12px;
+      width: 64px;
+      height: 64px;
+      background-color: rgba(255, 255, 255, 0.18);
+      border-radius: 18px;
       color: #ffffff;
-      font-size: 24px;
+      font-size: 28px;
       font-weight: bold;
-      margin-bottom: 12px;
-      backdrop-filter: blur(4px);
+      margin-bottom: 16px;
+      backdrop-filter: blur(6px);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18);
+    }
+    .email-logo {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 16px;
+      border-radius: 20px;
+      background-color: rgba(255,255,255,0.18);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18);
+    }
+    .email-logo svg {
+      width: 40px;
+      height: 40px;
     }
     .email-header h1 {
       margin: 0;
@@ -120,7 +136,18 @@
   <div class="email-container">
     <!-- Header with Sonder styling -->
     <div class="email-header">
-      <div class="logo-badge">S</div>
+      <div class="email-logo">
+        <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sonder logo">
+          <defs>
+            <linearGradient id="logo-gradient" x1="0" y1="0" x2="120" y2="120">
+              <stop offset="0%" stop-color="#f97316" />
+              <stop offset="100%" stop-color="#8b5cf6" />
+            </linearGradient>
+          </defs>
+          <circle cx="60" cy="60" r="54" fill="url(#logo-gradient)" />
+          <path d="M42 34C42 26.268 48.268 20 56 20H72C80.8366 20 88 27.1634 88 36V44C88 52.8366 80.8366 60 72 60H56C51.5817 60 48 63.5817 48 68V78C48 82.4183 51.5817 86 56 86H72C80.8366 86 88 93.1634 88 102V108" stroke="#ffffff" stroke-width="10" stroke-linecap="round" />
+        </svg>
+      </div>
       <h1>Account Verification</h1>
     </div>
 

@@ -1,6 +1,8 @@
 import React from 'react';
 import { Home, MessageCircleHeart, Library, Users, BarChart3, PenTool, Activity, Calendar, ClipboardList, ShieldAlert, GraduationCap } from 'lucide-react';
 import { ViewState } from '../../types';
+import logoLight from '../assest/Logo_with_name_light_mode.png';
+import logoDark from '../assest/Logo_with_name_dark_mode.png';
 
 interface NavigationProps {
   currentView: string;
@@ -42,8 +44,11 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView }) => {
       {/* Desktop Sidebar */}
       <nav className="hidden md:flex flex-col w-20 lg:w-64 h-screen bg-[#faf7ff] dark:bg-zinc-950 fixed left-0 top-0 z-50 shadow-sm transition-colors duration-300">
         <div className="p-6 flex items-center gap-3 bg-white/80 dark:bg-zinc-900/90 rounded-br-[2rem] shadow-sm transition-colors duration-300">
-          <div className="w-10 h-10 bg-gradient-to-tr from-[#c7d2fe] to-[#fde2e1] rounded-2xl animate-pulse-soft shadow-lg shadow-[#c7d2fe]/20"></div>
-          <span className="hidden lg:block font-semibold text-2xl tracking-tight text-zinc-900">Sonder</span>
+          <div className="w-12 h-12 relative">
+            <img src={logoLight} alt="Sonder logo" className="h-full w-full object-contain block dark:hidden" />
+            <img src={logoDark} alt="Sonder logo" className="h-full w-full object-contain hidden dark:block" />
+          </div>
+          <span className="hidden lg:block font-semibold text-2xl tracking-tight text-zinc-900 dark:text-white">Sonder</span>
         </div>
 
         <div className="flex-1 flex flex-col gap-3 p-4">

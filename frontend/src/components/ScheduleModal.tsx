@@ -74,10 +74,8 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
       setLoading(true);
 
       await api.post("/schedule/", {
-        student_id: Number(user.id),
         counsellor_id: Number(counselor.id),
         scheduled_time: `${date}T${time}:00`,
-        status: "pending",
       });
       setSuccess(true);
       setTimeout(onClose, 2000);

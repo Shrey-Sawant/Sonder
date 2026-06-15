@@ -2,6 +2,8 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Navigation from './src/components/Navigation';
 import ThemeToggle from './src/components/ThemeToggle';
+import logoLight from './src/assest/Logo_with_name_light_mode.png';
+import logoDark from './src/assest/Logo_with_name_dark_mode.png';
 import Dashboard from './src/pages/Dashboard';
 import Companion from './src/pages/Companion';
 import Sanctuary from './src/pages/Sanctuary';
@@ -62,8 +64,10 @@ const AppContent: React.FC = () => {
               {/* Header */}
               <header className="sticky top-0 z-40 bg-white/85 dark:bg-zinc-950/95 backdrop-blur-xl p-4 flex justify-between items-center shadow-sm transition-colors duration-300">
                 <div className="md:hidden flex items-center gap-2">
-                  <div className="w-6 h-6 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-full"></div>
-                  <span className="font-bold text-xl tracking-tighter">Sonder.</span>
+                  <div className="w-24 h-10 relative">
+                    <img src={logoLight} alt="Sonder logo" className="h-full w-auto block dark:hidden" />
+                    <img src={logoDark} alt="Sonder logo" className="h-full w-auto hidden dark:block" />
+                  </div>
                 </div>
                 <div className="ml-auto flex gap-4 items-center">
                   <button onClick={logout} className="text-xs font-medium text-zinc-500 dark:text-zinc-300 hover:text-red-500 dark:hover:text-red-400 transition-colors">Logout</button>
@@ -72,29 +76,31 @@ const AppContent: React.FC = () => {
               </header>
 
               {/* Main Content Area: Gated based on role as single source of truth */}
-              <div className="flex-1 p-4 md:p-6 lg:p-8 max-w-6xl mx-auto w-full">
-                {user?.role === 'counsellor' ? (
-                  <Routes>
-                    <Route path="dashboard" element={<Dashboard setView={(v) => navigate(`/${v}`)} />} />
-                    <Route path="connect" element={<CounsellorChatDashboard />} />
-                    <Route path="mystudents" element={<MyStudents />} />
-                    <Route path="appointments" element={<Appointments />} />
-                    <Route path="sessionnotes" element={<SessionNotes />} />
-                    <Route path="analytics" element={<Analytics />} />
-                    <Route path="alerts" element={<Alerts />} />
-                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
-                  </Routes>
-                ) : (
-                  <Routes>
-                    <Route path="dashboard" element={<Dashboard setView={(v) => navigate(`/${v}`)} />} />
-                    <Route path="companion" element={<Companion />} />
-                    <Route path="sanctuary" element={<Sanctuary />} />
-                    <Route path="connect" element={<Connect />} />
-                    <Route path="journal" element={<Journal />} />
-                    <Route path="exercises" element={<Exercises />} />
-                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
-                  </Routes>
-                )}
+              <div key={location.pathname} className="route-transition flex-1">
+                <div className="flex-1 p-4 md:p-6 lg:p-8 max-w-6xl mx-auto w-full">
+                  {user?.role === 'counsellor' ? (
+                    <Routes>
+                      <Route path="dashboard" element={<Dashboard setView={(v) => navigate(`/${v}`)} />} />
+                      <Route path="connect" element={<CounsellorChatDashboard />} />
+                      <Route path="mystudents" element={<MyStudents />} />
+                      <Route path="appointments" element={<Appointments />} />
+                      <Route path="sessionnotes" element={<SessionNotes />} />
+                      <Route path="analytics" element={<Analytics />} />
+                      <Route path="alerts" element={<Alerts />} />
+                      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                    </Routes>
+                  ) : (
+                    <Routes>
+                      <Route path="dashboard" element={<Dashboard setView={(v) => navigate(`/${v}`)} />} />
+                      <Route path="companion" element={<Companion />} />
+                      <Route path="sanctuary" element={<Sanctuary />} />
+                      <Route path="connect" element={<Connect />} />
+                      <Route path="journal" element={<Journal />} />
+                      <Route path="exercises" element={<Exercises />} />
+                      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                    </Routes>
+                  )}
+                </div>
               </div>
             </main>
           </div>

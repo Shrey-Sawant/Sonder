@@ -141,6 +141,62 @@ button {
   }
 }
 
+@keyframes routeFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pulseSoft {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
 .animate-fade-soft {
   animation: fadeInSoft 0.45s ease-in-out both;
+}
+
+.route-transition {
+  animation: routeFadeIn 0.35s ease-out both;
+  will-change: opacity, transform;
+}
+
+.page-transition {
+  transition: background-color 0.35s ease, color 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
+}
+
+body,
+#root {
+  min-height: 100%;
+}
+
+@keyframes routeFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.route-transition {
+  animation: routeFadeIn 0.35s ease-out both;
+  will-change: opacity, transform;
+}
+
+html {
+  scroll-behavior: smooth;
+  min-height: 100%;
+  background: #fbfbfe;
 }

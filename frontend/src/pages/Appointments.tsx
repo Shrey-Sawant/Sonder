@@ -8,6 +8,7 @@ interface Appointment {
   student_name: string;
   scheduled_time: string;
   status: 'pending' | 'accepted' | 'rejected' | 'declined';
+  video_meeting_url?: string;
 }
 
 const Appointments: React.FC = () => {
@@ -150,6 +151,16 @@ const Appointments: React.FC = () => {
                     {appt.status}
                   </span>
                 )}
+              {appt.status === 'accepted' && appt.video_meeting_url && (
+                <a
+                  href={appt.video_meeting_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 inline-flex items-center justify-center gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 text-indigo-700 px-4 py-2 text-xs font-semibold transition hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200"
+                >
+                  Join Video Call
+                </a>
+              )}
               </div>
             </div>
           ))}
