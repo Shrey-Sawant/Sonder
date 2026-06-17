@@ -14,6 +14,7 @@ class UserCreate(UserBase):
     phone: Optional[str] = None
     experience: Optional[int] = None
     certification: Optional[str] = None
+    notify_on_crisis: Optional[bool] = True
 
 
 class UserLogin(BaseModel):
@@ -30,6 +31,9 @@ class UserResponse(UserBase):
     is_available: bool
     is_verified: bool
     is_approved: bool
+    anon_id: Optional[str] = None
+    anon_mode_enabled: Optional[bool] = True
+    notify_on_crisis: Optional[bool] = True
     created_at: datetime
 
     class Config:

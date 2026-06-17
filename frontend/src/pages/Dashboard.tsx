@@ -198,6 +198,11 @@ const StudentDashboard: React.FC<DashboardProps> = ({ setView }) => {
   const [exerciseProgress, setExerciseProgress] = useState(0);
   const [checkinProgress, setCheckinProgress] = useState(0);
 
+  const [crisisAlert, setCrisisAlert] = useState<any>(null);
+  const [recentSessionCheckIn, setRecentSessionCheckIn] = useState(false);
+  const [recentSession, setRecentSession] = useState<any>(null);
+  const [weeklyInsight, setWeeklyInsight] = useState<any>(null);
+
   // 1. Check if user already checked in today
   useEffect(() => {
     api.get('/checkin/history')
@@ -217,6 +222,64 @@ const StudentDashboard: React.FC<DashboardProps> = ({ setView }) => {
         console.error(err);
         setShowCheckIn(true);
       });
+  }, []);
+
+  // Crisis Alert Check
+  useEffect(() => {
+    api.get('/crisis/check')
+      .then(res => {
+        if (res.data.intervention_needed) {
+          setCrisisAlert(res.data);
+        } else {
+          setCrisisAlert(null);
+        }
+      })
+      .catch(err => console.error('Crisis status check error:', err));
+  }, []);
+
+  // Post Session Check-in Alert Check
+  useEffect(() => {
+    api.get('/sessions/list')
+      .then(res => {
+        const list = res.data;
+        // Find a session completed/scheduled recently (e.g. ended within the last 2 hours)
+        const recent = list.find((s: any) => {
+          if (s.status !== 'completed' && s.status !== 'scheduled') return false;
+          const scheduledDate = new Date(s.scheduled_at);
+          const now = new Date();
+          const diffMs = now.getTime() - scheduledDate.getTime();
+          // Within last 2 hours and at least 5 minutes ago
+          return diffMs > 300000 && diffMs < 7200000;
+        });
+        
+        if (recent) {
+          setRecentSession(recent);
+          setRecentSessionCheckIn(true);
+        }
+      })
+      .catch(err => console.error('Sessions check error:', err));
+  }, []);
+
+  const handleResolveCrisis = async (action: string) => {
+    if (!crisisAlert) return;
+    try {
+      await api.post(`/crisis/events/resolve?event_id=${crisisAlert.event_id}&action=${action}`);
+      setCrisisAlert(null);
+      if (action === 'booked_session') {
+        setView(ViewState.CONNECT);
+      }
+    } catch (err) {
+      console.error('Resolve crisis error:', err);
+    }
+  };
+
+  // Weekly Insights Check
+  useEffect(() => {
+    api.get('/insights/weekly')
+      .then(res => {
+        setWeeklyInsight(res.data);
+      })
+      .catch(err => console.error('Weekly insights check error:', err));
   }, []);
 
   // 2. Fetch today's progress for rings
@@ -312,6 +375,53 @@ const StudentDashboard: React.FC<DashboardProps> = ({ setView }) => {
     <div className="space-y-8 relative pb-12">
       <div className="absolute inset-0 -z-10 bg-gradient-to-br from-indigo-50/50 via-purple-50/30 to-rose-50/50 dark:from-indigo-950/20 dark:via-purple-950/10 dark:to-rose-950/20 animate-gradient-slow rounded-3xl opacity-60"></div>
 
+      {/* HARD crisis alert modal (non-dismissible) */}
+      {crisisAlert && crisisAlert.type === 'HARD' && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-[32px] overflow-hidden border border-red-500 shadow-2xl p-8 space-y-6 text-center animate-scale-in">
+            <div className="w-16 h-16 bg-red-100 dark:bg-red-950/40 text-red-600 mx-auto rounded-full flex items-center justify-center">
+              <AlertCircle size={32} />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-black text-rose-600">Important Safety Alert</h2>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                We care about your safety. Sonder has detected strong emotional stress triggers in your recent activity. You do not have to carry this load alone.
+              </p>
+            </div>
+
+            <div className="space-y-3 text-left">
+              <a href="tel:9152987821" className="w-full bg-[#faf9ff] dark:bg-zinc-950/60 p-4 rounded-2xl flex items-center justify-between border border-[#ece9ff] dark:border-zinc-800 hover:border-purple-300 transition-colors">
+                <span className="font-bold text-xs">iCall Helpline</span>
+                <span className="font-mono text-xs font-bold text-purple-700">9152987821</span>
+              </a>
+              <a href="tel:9999666555" className="w-full bg-[#faf9ff] dark:bg-zinc-950/60 p-4 rounded-2xl flex items-center justify-between border border-[#ece9ff] dark:border-zinc-800 hover:border-purple-300 transition-colors">
+                <span className="font-bold text-xs">Vandrevala Foundation</span>
+                <span className="font-mono text-xs font-bold text-purple-700">9999666555</span>
+              </a>
+              <a href="tel:988" className="w-full bg-[#faf9ff] dark:bg-zinc-950/60 p-4 rounded-2xl flex items-center justify-between border border-[#ece9ff] dark:border-zinc-800 hover:border-purple-300 transition-colors">
+                <span className="font-bold text-xs">National Suicide Prevention</span>
+                <span className="font-mono text-xs font-bold text-purple-700">988</span>
+              </a>
+            </div>
+
+            <div className="flex gap-4 pt-2">
+              <button
+                onClick={() => handleResolveCrisis('booked_session')}
+                className="flex-1 py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-95 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-purple-500/10"
+              >
+                Book Counseling
+              </button>
+              <button
+                onClick={() => handleResolveCrisis('contacted_support')}
+                className="flex-1 py-3.5 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 rounded-xl text-xs font-bold text-zinc-500"
+              >
+                I contacted support
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 pt-4 px-2">
         <div>
           <h1 className="text-4xl md:text-5xl font-bold text-zinc-900 dark:text-white tracking-tight flex items-center gap-3">
@@ -331,6 +441,87 @@ const StudentDashboard: React.FC<DashboardProps> = ({ setView }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 flex flex-col gap-6">
+              
+              {/* SOFT crisis warning banner */}
+              {crisisAlert && crisisAlert.type === 'SOFT' && (
+                <div className="bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/50 p-5 rounded-2xl flex gap-4 text-xs text-rose-800 dark:text-rose-300 animate-slide-in">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-600" />
+                  <div className="flex-1">
+                    <p className="font-bold">Important Support Notice</p>
+                    <p className="mt-0.5 leading-relaxed">
+                      It looks like you are going through a difficult time. Sonder is here for you. Please remember support is available: contact the iCall hotline at 9152987821 or Vandrevala Foundation at 9999666555.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleResolveCrisis('dismissed')}
+                    className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 dark:bg-rose-900 dark:hover:bg-rose-800 rounded-lg text-rose-800 dark:text-rose-200 font-bold transition-all h-fit self-center"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+
+              {/* Post-session mood check-in banner */}
+              {recentSessionCheckIn && (
+                <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/50 p-5 rounded-2xl flex justify-between items-center gap-4 text-purple-950 dark:text-purple-300 animate-slide-in">
+                  <div className="flex gap-3 items-center">
+                    <Sparkles className="w-5 h-5 text-purple-600 animate-pulse" />
+                    <div>
+                      <p className="text-xs font-bold">Post-Session Check-in</p>
+                      <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                        It's been 30 minutes since your counseling session. How is your mood doing?
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2.5">
+                    <button
+                      onClick={() => {
+                        setRecentSessionCheckIn(false);
+                        setView(ViewState.JOURNAL);
+                      }}
+                      className="px-4 py-2 bg-[#7c3aed] hover:bg-[#6d28d9] text-white rounded-xl text-xs font-bold shadow-sm transition-all"
+                    >
+                      Log Journal
+                    </button>
+                    <button
+                      onClick={() => setRecentSessionCheckIn(false)}
+                      className="px-3 py-2 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 rounded-xl text-xs font-bold text-zinc-500"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Weekly AI Mindset Reframing Insight Card */}
+              {weeklyInsight && (
+                <div className="bg-gradient-to-br from-[#7c3aed]/10 via-[#c084fc]/5 to-transparent border border-purple-200/50 dark:border-zinc-800 rounded-3xl p-6 shadow-sm space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-extrabold text-purple-700 dark:text-purple-400 flex items-center gap-2">
+                      <Sparkles className="w-5 h-5" /> Weekly Mindset Reframing
+                    </h3>
+                    <span className="text-[10px] bg-purple-100 dark:bg-purple-950/40 text-purple-800 dark:text-purple-300 font-bold px-2.5 py-0.5 rounded-full uppercase">
+                      Week of {new Date(weeklyInsight.week_start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="text-xs font-bold uppercase text-zinc-400">Observation</h4>
+                      <p className="text-xs text-zinc-700 dark:text-zinc-300 mt-0.5 leading-relaxed">{weeklyInsight.observation}</p>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold uppercase text-zinc-400">Reframe</h4>
+                      <p className="text-xs text-zinc-700 dark:text-zinc-300 mt-0.5 leading-relaxed italic">"{weeklyInsight.reframe}"</p>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold uppercase text-zinc-400">Micro-Action</h4>
+                      <p className="text-xs text-[#7c3aed] dark:text-[#c084fc] font-semibold mt-0.5 leading-relaxed">🎯 {weeklyInsight.micro_action}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {checkInResult?.alert && (
                   <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-2xl p-6 shadow-sm">
                       <h3 className="text-amber-800 dark:text-amber-300 font-semibold text-lg flex items-center gap-2">

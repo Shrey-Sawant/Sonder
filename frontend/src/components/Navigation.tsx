@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, MessageCircleHeart, Library, Users, BarChart3, PenTool, Activity, Calendar, ClipboardList, ShieldAlert, GraduationCap } from 'lucide-react';
+import { Home, MessageCircleHeart, Library, Users, BarChart3, PenTool, Activity, Calendar, ClipboardList, ShieldAlert, GraduationCap, MessageSquare, BookOpen } from 'lucide-react';
 import { ViewState } from '../../types';
 import logoLight from '../assest/Logo_with_name_light_mode.png';
 import logoDark from '../assest/Logo_with_name_dark_mode.png';
@@ -24,6 +24,8 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView }) => {
     { id: ViewState.EXERCISES, icon: Activity, label: 'Exercises' },
     { id: ViewState.COMPANION, icon: MessageCircleHeart, label: 'Companion' },
     { id: ViewState.SANCTUARY, icon: Library, label: 'Sanctuary' },
+    { id: ViewState.STORY_FEED, icon: BookOpen, label: 'Story Feed' },
+    { id: ViewState.PEER_CHAT, icon: MessageSquare, label: 'Peer Chat' },
     { id: ViewState.CONNECT, icon: Users, label: 'Connect' },
   ];
 
@@ -73,8 +75,19 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView }) => {
               <img src="https://picsum.photos/100/100?grayscale" alt="User" className="w-full h-full object-cover opacity-80" />
             </div>
             <div className="hidden lg:block">
-              <p className="text-xs font-semibold text-zinc-900">{user?.username || 'User'}</p>
-              <p className="text-[10px] capitalize text-zinc-500">{user?.role || 'Member'}</p>
+              {user?.anon_mode_enabled && user?.anon_id ? (
+                <div className="flex flex-col gap-1">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300">
+                    {user.anon_id}
+                  </span>
+                  <p className="text-[10px] text-zinc-400 capitalize">Anonymous Mode</p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs font-semibold text-zinc-900 dark:text-white">{user?.username || 'User'}</p>
+                  <p className="text-[10px] capitalize text-zinc-500">{user?.role || 'Member'}</p>
+                </>
+              )}
             </div>
           </div>
         </div>

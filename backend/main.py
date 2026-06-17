@@ -106,6 +106,24 @@ app.include_router(reminders_router, prefix="/api/v1/reminders", tags=["reminder
 from api.v1.notes import router as notes_router
 app.include_router(notes_router, prefix="/api/v1/notes", tags=["notes"])
 
+# Register new features
+from api.v1.stories import router as stories_router
+app.include_router(stories_router, prefix="/api/v1", tags=["stories"])
+from api.v1.crisis import router as crisis_router
+app.include_router(crisis_router, prefix="/api/v1", tags=["crisis"])
+from api.v1.insights import router as insights_router
+app.include_router(insights_router, prefix="/api/v1", tags=["insights"])
+from api.v1.counselling_sessions import router as counselling_sessions_router
+app.include_router(counselling_sessions_router, prefix="/api/v1", tags=["counselling-sessions"])
+from api.v1.peer_chat import router as peer_chat_router
+app.include_router(peer_chat_router, prefix="/api/v1", tags=["peer-chat"])
+
+from services.scheduler import start_scheduler
+
+@app.on_event("startup")
+async def startup_event():
+    start_scheduler()
+
 
 @app.get("/")
 def check_health():

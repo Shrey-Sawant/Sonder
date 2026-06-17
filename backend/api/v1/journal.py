@@ -1,146 +1,295 @@
-from fastapi import APIRouter, Depends, HTTPException
+"""
+Journal API v1 - Mood tracking and reflective entry management (Async version)
+"""
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import desc
-from typing import List
-from db.session import get_db
-from models.journal import JournalEntry
-from schemas.journal import JournalEntryCreate, JournalEntryResponse
-from api.v1.auth import get_current_user
-from models.user import User
-from groq import Groq
-import os
-import json
+from datetime import datetime
+from typing import List, Optional
+import uuid
 
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+from db.session import get_db
+from api.deps import get_current_user
+from models.user import User
+from models.journal_entry import JournalEntry, MoodEnum, PromptCategoryEnum
+from models.shared_story import SharedStory
+from core.encryption import encrypt_string, decrypt_string
+from services.mood_companion import get_mood_companion
+from services.crisis_detector import get_crisis_detector
+from models.crisis_event import CrisisEvent
+from services.content_moderator import get_content_moderator
+
+from pydantic import BaseModel, Field
 
 router = APIRouter()
 
-def get_sentiment(text: str):
-    prompt = f"""Analyze the sentiment of the following journal entry. 
-Respond ONLY with a valid JSON object containing exactly these two keys:
-- "score": a float between -1.0 (extremely negative) and 1.0 (extremely positive)
-- "label": a single emoji string, must be exactly one of: 😄, 🙂, 😐, 😔
 
-Journal entry:
-{text}
-"""
-    try:
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0,
-            response_format={"type": "json_object"}
-        )
-        content = response.choices[0].message.content
-        data = json.loads(content)
-        return float(data.get("score", 0.0)), data.get("label", "😐")
-    except Exception:
-        # Fallback if API fails
-        return 0.0, "😐"
+# ===== SCHEMAS =====
 
-@router.post("/entry", response_model=JournalEntryResponse)
+class JournalEntryCreate(BaseModel):
+    mood_selected: MoodEnum
+    prompt_category: PromptCategoryEnum
+    entry_text: str = Field(..., min_length=50)  # Minimum 50 chars
+
+
+class JournalEntryShareRequest(BaseModel):
+    entry_id: str
+    share_anonymously: bool = True
+
+
+class JournalEntryResponse(BaseModel):
+    entry_id: str
+    mood_selected: str
+    prompt_category: str
+    entry_text: str
+    ai_reflection: Optional[str]
+    shared_anonymously: bool
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class PromptResponse(BaseModel):
+    category: str
+    text: str
+
+
+# ===== PROMPTS BY CATEGORY =====
+
+PROMPTS = {
+    PromptCategoryEnum.ACADEMIC: [
+        "What's one thing weighing on you about this semester?",
+        "When did you feel most stressed about school this week?",
+        "What's one academic goal that excites you right now?",
+        "Describe a time this week when you felt unprepared.",
+    ],
+    PromptCategoryEnum.SOCIAL: [
+        "Did you feel seen by someone today, or unseen?",
+        "Who made you feel valued this week?",
+        "What's one conversation you wish you'd had?",
+        "How did you show up for someone today?",
+    ],
+    PromptCategoryEnum.IDENTITY: [
+        "What version of yourself showed up today?",
+        "Where do you feel like yourself, and where don't you?",
+        "What part of your identity felt challenged this week?",
+        "Who do you want to be becoming?",
+    ],
+    PromptCategoryEnum.GENERAL: [
+        "What do you wish you could say out loud right now?",
+        "What brought you peace this week?",
+        "If you could change one thing about today, what would it be?",
+        "What's something you're grateful for, even if it's small?",
+    ]
+}
+
+
+# ===== ENDPOINTS =====
+
+@router.post("/entries", response_model=dict)
 async def create_journal_entry(
-    entry: JournalEntryCreate, 
-    db: AsyncSession = Depends(get_db), 
+    entry_data: JournalEntryCreate,
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    score, label = get_sentiment(entry.text)
-    
-    # Auto flag high-risk sentiment
-    is_flagged = False
-    flag_reason = None
-    if score < -0.5:
-        is_flagged = True
-        flag_reason = "High Risk Sentiment"
+    """
+    Create a new journal entry
+    - Mood wheel selection
+    - Prompt category
+    - Free-text entry (min 50 chars)
+    - Generates AI reflection
+    - Runs crisis detection
+    """
+    try:
+        # Encrypt entry text
+        encrypted_entry = encrypt_string(entry_data.entry_text)
         
-    new_entry = JournalEntry(
-        user_id=current_user.id,
-        text=entry.text,
-        sentiment_score=score,
-        sentiment_label=label,
-        is_flagged=is_flagged,
-        flag_reason=flag_reason
-    )
-    db.add(new_entry)
-    await db.commit()
-    await db.refresh(new_entry)
-    return new_entry
+        # Create entry
+        entry = JournalEntry(
+            entry_id=uuid.uuid4(),
+            user_id=current_user.user_id,
+            anon_id=current_user.anon_id,
+            mood_selected=entry_data.mood_selected,
+            prompt_category=entry_data.prompt_category,
+            entry_text=encrypted_entry,
+            created_at=datetime.utcnow()
+        )
+        
+        db.add(entry)
+        await db.flush()
+        
+        # Generate AI reflection
+        companion = get_mood_companion()
+        ai_reflection = await companion.generate_reflection(
+            entry_data.mood_selected.value,
+            entry_data.entry_text
+        )
+        
+        if ai_reflection:
+            entry.ai_reflection = ai_reflection
+        
+        # Crisis detection
+        detector = get_crisis_detector()
+        crisis_result = await detector.assess_risk(
+            entry_data.entry_text,
+            source_type="journal"
+        )
+        
+        crisis_detected = False
+        crisis_level = None
+        if crisis_result["requires_intervention"]:
+            crisis_detected = True
+            crisis_level = crisis_result["risk_level"]
+            crisis_event = CrisisEvent(
+                event_id=uuid.uuid4(),
+                user_id=current_user.user_id,
+                anon_id=current_user.anon_id,
+                source="journal",
+                source_id=entry.entry_id,
+                risk_level=crisis_result["risk_level"].lower(),
+                signal_text=encrypt_string(crisis_result["signal"]),
+                ai_reasoning=crisis_result.get("signal", ""),
+                triggered_at=datetime.utcnow()
+            )
+            db.add(crisis_event)
+        
+        await db.commit()
+        
+        return {
+            "entry_id": str(entry.entry_id),
+            "mood_selected": entry.mood_selected.value,
+            "prompt_category": entry.prompt_category.value,
+            "ai_reflection": ai_reflection,
+            "created_at": entry.created_at,
+            "crisis_detected": crisis_detected,
+            "crisis_level": crisis_level
+        }
+    
+    except Exception as e:
+        await db.rollback()
+        print(f"Error creating journal entry: {e}")
+        raise HTTPException(status_code=500, detail="Error creating entry")
 
-@router.get("/flagged")
-async def get_flagged_journals(
+
+@router.get("/entries", response_model=List[JournalEntryResponse])
+async def list_journal_entries(
+    limit: int = 30,
+    offset: int = 0,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
+    """Get user's journal entries (paginated, most recent first)"""
+    try:
+        stmt = (
+            select(JournalEntry)
+            .where(JournalEntry.user_id == current_user.user_id)
+            .order_by(desc(JournalEntry.created_at))
+            .limit(limit)
+            .offset(offset)
+        )
+        res = await db.execute(stmt)
+        entries = res.scalars().all()
+        
+        result = []
+        for entry in entries:
+            result.append({
+                "entry_id": str(entry.entry_id),
+                "mood_selected": entry.mood_selected.value,
+                "prompt_category": entry.prompt_category.value,
+                "entry_text": decrypt_string(entry.entry_text) if entry.entry_text else "",
+                "ai_reflection": entry.ai_reflection,
+                "shared_anonymously": entry.shared_anonymously,
+                "created_at": entry.created_at
+            })
+        
+        return result
     
-    stmt = (
-        select(JournalEntry, User.username)
-        .join(User, JournalEntry.user_id == User.id)
-        .where(JournalEntry.is_flagged == True)
-        .order_by(desc(JournalEntry.timestamp))
-    )
-    res = await db.execute(stmt)
-    flagged = []
-    for row in res.all():
-        je, username = row
-        flagged.append({
-            "id": je.id,
-            "student": username,
-            "text": je.text,
-            "timestamp": je.timestamp.isoformat(),
-            "reason": je.flag_reason or "High Risk Sentiment"
-        })
-    return flagged
+    except Exception as e:
+        print(f"Error fetching entries: {e}")
+        raise HTTPException(status_code=500, detail="Error fetching entries")
 
-@router.put("/flagged/{journal_id}/dismiss")
-async def dismiss_journal_flag(
-    journal_id: int,
+
+@router.get("/prompt")
+async def get_daily_prompt():
+    """Get a random prompt for the mood wheel"""
+    import random
+    categories = list(PROMPTS.keys())
+    chosen_category = random.choice(categories)
+    prompt = random.choice(PROMPTS[chosen_category])
+    
+    return {
+        "category": chosen_category.value,
+        "text": prompt
+    }
+
+
+@router.post("/share")
+async def share_entry_anonymously(
+    request: JournalEntryShareRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Not authorized")
+    """
+    Share a journal entry anonymously to the story feed
+    - AI content moderation check
+    - Only excerpt stored (max 120 chars)
+    - No identifiable info
+    """
+    try:
+        # Get entry
+        stmt = select(JournalEntry).where(
+            JournalEntry.entry_id == uuid.UUID(request.entry_id),
+            JournalEntry.user_id == current_user.user_id
+        )
+        res = await db.execute(stmt)
+        entry = res.scalars().first()
+        
+        if not entry:
+            raise HTTPException(status_code=404, detail="Entry not found")
+        
+        if entry.shared_anonymously:
+            raise HTTPException(status_code=400, detail="Entry already shared")
+        
+        # Decrypt entry for moderation check
+        decrypted_text = decrypt_string(entry.entry_text)
+        
+        # Content moderation
+        moderator = get_content_moderator()
+        moderation_result = await moderator.check_content_safety(decrypted_text)
+        
+        if not moderation_result["safe"]:
+            return {
+                "success": False,
+                "message": "This entry is a bit too personal to share — your words are safe with us."
+            }
+        
+        # Create story (excerpt only, strip identifying info, max 120 chars)
+        excerpt = decrypted_text[:120]
+        story = SharedStory(
+            story_id=uuid.uuid4(),
+            journal_entry_id=entry.entry_id,
+            author_anon_id=current_user.anon_id,
+            excerpt=excerpt,
+            mood=entry.mood_selected.value,
+            moderated=True,
+            published_at=datetime.utcnow()
+        )
+        
+        entry.shared_anonymously = True
+        
+        db.add(story)
+        await db.commit()
+        
+        return {
+            "success": True,
+            "story_id": str(story.story_id),
+            "message": "Shared anonymously! Your story might help someone feel less alone."
+        }
     
-    res = await db.execute(select(JournalEntry).where(JournalEntry.id == journal_id))
-    je = res.scalars().first()
-    if not je:
-        raise HTTPException(status_code=404, detail="Journal entry not found")
-    
-    je.is_flagged = False
-    await db.commit()
-    return {"message": "Flag dismissed"}
-
-@router.delete("/{journal_id}")
-async def delete_journal_entry(
-    journal_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    res = await db.execute(select(JournalEntry).where(JournalEntry.id == journal_id))
-    je = res.scalars().first()
-    if not je:
-        raise HTTPException(status_code=404, detail="Journal entry not found")
-    
-    if current_user.role != "admin" and je.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    await db.delete(je)
-    await db.commit()
-    return {"message": "Journal entry deleted"}
-
-@router.get("/history", response_model=List[JournalEntryResponse])
-async def get_journal_history(
-    db: AsyncSession = Depends(get_db), 
-    current_user: User = Depends(get_current_user)
-):
-    # Fetch last 30 entries
-    result = await db.execute(
-        select(JournalEntry)
-        .where(JournalEntry.user_id == current_user.id)
-        .order_by(desc(JournalEntry.timestamp))
-        .limit(30)
-    )
-    entries = result.scalars().all()
-    return entries
+    except Exception as e:
+        await db.rollback()
+        print(f"Error sharing entry: {e}")
+        raise HTTPException(status_code=500, detail="Error sharing entry")

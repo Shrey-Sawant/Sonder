@@ -14,6 +14,7 @@ import json
 import logging
 import redis
 from jose import JWTError, jwt
+from utils.anon_id import generate_anon_id
 
 logger = logging.getLogger(__name__)
 from config.settings import settings
@@ -80,6 +81,18 @@ def delete_otp(email: str):
 
 
 # =========================
+# HELPER
+# =========================
+async def get_unique_anon_id(db: AsyncSession) -> str:
+    while True:
+        candidate = generate_anon_id()
+        stmt = select(User).where(User.anon_id == candidate)
+        res = await db.execute(stmt)
+        if not res.scalars().first():
+            return candidate
+
+
+# =========================
 # REGISTER
 # =========================
 @router.post("/register", status_code=201)
@@ -106,6 +119,9 @@ async def register(
 
     hashed_password = get_password_hash(user.password)
 
+    # Generate unique anon id
+    anon_id = await get_unique_anon_id(db)
+
     # Direct registration (no OTP)
     if user.role in {"student", "admin"}:
         new_user = User(
@@ -116,6 +132,8 @@ async def register(
             phone=user.phone,
             experience=user.experience,
             certification=user.certification,
+            anon_id=anon_id,
+            notify_on_crisis=user.notify_on_crisis if user.notify_on_crisis is not None else True,
             is_verified=True,
             is_approved=True,
         )
@@ -141,6 +159,8 @@ async def register(
             "phone": user.phone,
             "experience": user.experience,
             "certification": user.certification,
+            "anon_id": anon_id,
+            "notify_on_crisis": user.notify_on_crisis if user.notify_on_crisis is not None else True
         }
     })
 
@@ -183,6 +203,8 @@ async def verify_email(
         phone=user_data["phone"],
         experience=user_data["experience"],
         certification=user_data["certification"],
+        anon_id=user_data["anon_id"],
+        notify_on_crisis=user_data.get("notify_on_crisis", True),
         is_verified=True,
         is_approved=False,
     )

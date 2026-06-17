@@ -38,6 +38,9 @@ export enum ViewState {
   INSIGHT = 'insight', // Admin
   JOURNAL = 'journal', // Mood Journal
   EXERCISES = 'exercises', // Exercises
+  PEER_CHAT = 'peer_chat', // Anonymous Peer Chat
+  STORY_FEED = 'story_feed', // Anonymous Story Feed
+  VIDEO_CALL = 'video_call', // Video call room
 
   // Counsellor Views:
   MY_STUDENTS = 'mystudents',

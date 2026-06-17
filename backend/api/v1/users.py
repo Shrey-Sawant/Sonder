@@ -5,7 +5,7 @@ from db.session import get_db
 from schemas.user import UserResponse
 from models.user import User
 from models.checkin import CheckIn
-from models.journal import JournalEntry
+from models.journal_entry import JournalEntry
 from models.exercise import ExerciseCompletion
 from api.deps import get_current_user
 from datetime import datetime, timezone
@@ -95,14 +95,14 @@ async def get_my_students(
         # Get latest journal entry
         j_res = await db.execute(
             select(JournalEntry)
-            .where(JournalEntry.user_id == s.id)
-            .order_by(desc(JournalEntry.timestamp))
+            .where(JournalEntry.user_id == s.user_id)
+            .order_by(desc(JournalEntry.created_at))
             .limit(1)
         )
         latest_j = j_res.scalars().first()
         if latest_j:
-            if not latest_ci or latest_j.timestamp > latest_ci.created_at:
-                mood_label = latest_j.sentiment_label
+            if not latest_ci or latest_j.created_at > latest_ci.created_at:
+                mood_label = latest_j.mood_selected.value
 
         # Get latest exercise completion
         ex_res = await db.execute(
@@ -117,7 +117,7 @@ async def get_my_students(
         if latest_ci:
             times.append(latest_ci.created_at)
         if latest_j:
-            times.append(latest_j.timestamp)
+            times.append(latest_j.created_at)
         if latest_ex:
             times.append(latest_ex.completed_at)
             

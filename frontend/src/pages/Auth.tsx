@@ -43,7 +43,8 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login' }) => {
         phone: '',
         experience: 0,
         certification: '',
-        otp: ''
+        otp: '',
+        notify_on_crisis: true
     });
 
     const showModal = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info') => {
@@ -92,6 +93,10 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login' }) => {
                     payload.phone = formData.phone;
                     payload.experience = Number(formData.experience);
                     payload.certification = formData.certification;
+                }
+
+                if (activeTab === 'student') {
+                    payload.notify_on_crisis = formData.notify_on_crisis;
                 }
 
                 await api.post('/auth/register', payload);
@@ -259,6 +264,22 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login' }) => {
                             className="w-full p-4 bg-[#fbfbfe] border border-[#e5e7ff] rounded-[22px] focus:outline-none focus:ring-2 focus:ring-[#c7d2fe] text-zinc-900"
                             required
                         />
+
+                        {!isLogin && activeTab === 'student' && (
+                            <div className="flex items-start gap-3 p-4 bg-[#f5f3ff] rounded-[22px] border border-[#ece9ff]">
+                                <input
+                                    id="notify_on_crisis"
+                                    name="notify_on_crisis"
+                                    type="checkbox"
+                                    checked={formData.notify_on_crisis}
+                                    onChange={(e) => setFormData({ ...formData, notify_on_crisis: e.target.checked })}
+                                    className="mt-1 h-5 w-5 rounded border-[#c7d2fe] text-[#7c3aed] focus:ring-[#c7d2fe]"
+                                />
+                                <label htmlFor="notify_on_crisis" className="text-sm text-zinc-600 leading-normal cursor-pointer select-none">
+                                    I consent to sharing crisis alert details with verified counsellors in case of high-risk indicators to receive support.
+                                </label>
+                            </div>
+                        )}
 
                         {!isLogin && activeTab === 'counsellor' && (
                             <>

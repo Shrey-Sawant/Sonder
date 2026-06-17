@@ -20,6 +20,9 @@ import Alerts from './src/pages/Alerts';
 import AdminDashboard from './src/pages/AdminDashboard';
 import CounsellorChatDashboard from './src/components/CounsellorChatDashboard';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import StoryFeed from './src/pages/StoryFeed';
+import PeerChat from './src/pages/PeerChat';
+import VideoCall from './src/pages/VideoCall';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useAuth();
@@ -97,6 +100,9 @@ const AppContent: React.FC = () => {
                       <Route path="connect" element={<Connect />} />
                       <Route path="journal" element={<Journal />} />
                       <Route path="exercises" element={<Exercises />} />
+                      <Route path="story_feed" element={<StoryFeed />} />
+                      <Route path="peer_chat" element={<PeerChat />} />
+                      <Route path="video_call" element={<VideoCall />} />
                       <Route path="*" element={<Navigate to="/dashboard" replace />} />
                     </Routes>
                   )}

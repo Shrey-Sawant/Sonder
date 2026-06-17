@@ -11,6 +11,9 @@ interface User {
     experience?: number;
     certification?: string;
     rating?: number;
+    anon_id?: string;
+    anon_mode_enabled?: boolean;
+    notify_on_crisis?: boolean;
 }
 
 interface AuthContextType {
