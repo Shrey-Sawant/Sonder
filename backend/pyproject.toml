@@ -9,6 +9,7 @@ dependencies = [
     "apscheduler>=3.11.2",
     "asyncpg>=0.31.0",
     "bcrypt==4.0.1",
+    "cryptography>=48.0.0",
     "fastapi>=0.127.0",
     "groq>=1.0.0",
     "langchain==0.3.26",
