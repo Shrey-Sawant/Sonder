@@ -10,6 +10,8 @@ interface Story {
   excerpt: string;
   resonance_count: number;
   published_at: string;
+  theme?: string;
+  resonance_hook?: string;
 }
 
 const moodMeta: Record<string, { label: string; emoji: string; bg: string; text: string }> = {
@@ -32,6 +34,7 @@ const StoryFeed: React.FC = () => {
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [activeResponse, setActiveResponse] = useState<string | null>(null);
 
   useEffect(() => {
     fetchStories();
@@ -71,7 +74,10 @@ const StoryFeed: React.FC = () => {
     localStorage.setItem('resonated_stories', JSON.stringify(Array.from(newResonated)));
 
     try {
-      await api.post(`/stories/${storyId}/resonate`);
+      const res = await api.post(`/stories/${storyId}/resonate`);
+      if (res.data && res.data.resonance_response) {
+        setActiveResponse(res.data.resonance_response);
+      }
     } catch (error) {
       console.error('Error resonating with story:', error);
       // Rollback on error
@@ -157,7 +163,7 @@ const StoryFeed: React.FC = () => {
                 <div className="space-y-4">
                   {/* Top Badges */}
                   <div className="flex justify-between items-center gap-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300">
                         {story.author_anon_id}
                       </span>
@@ -165,6 +171,11 @@ const StoryFeed: React.FC = () => {
                         <span>{meta.emoji}</span>
                         <span>{meta.label}</span>
                       </span>
+                      {story.theme && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-950/20 dark:text-indigo-300 border border-indigo-100/30 dark:border-indigo-900/30">
+                          #{story.theme}
+                        </span>
+                      )}
                     </div>
 
                     {isOwnStory && (
@@ -178,9 +189,19 @@ const StoryFeed: React.FC = () => {
                     )}
                   </div>
 
+                  {/* Resonance Hook */}
+                  {story.resonance_hook && (
+                    <div className="relative py-2.5 px-4 bg-purple-50/30 dark:bg-zinc-800/10 rounded-2xl border border-purple-100/20 dark:border-zinc-800/30">
+                      <span className="absolute -top-2 left-2 text-2xl text-purple-300 dark:text-purple-700/60 font-serif leading-none">“</span>
+                      <p className="text-xs font-semibold text-purple-900/80 dark:text-purple-300/80 italic pl-3 leading-relaxed">
+                        {story.resonance_hook}
+                      </p>
+                    </div>
+                  )}
+
                   {/* Excerpt */}
                   <p className="text-zinc-700 dark:text-zinc-300 text-sm leading-relaxed whitespace-pre-wrap italic">
-                    "{story.excerpt}..."
+                    "{story.excerpt}"
                   </p>
                 </div>
 
@@ -216,6 +237,34 @@ const StoryFeed: React.FC = () => {
       ) : (
         <div className="bg-white dark:bg-zinc-900 border border-[#ece9ff] dark:border-zinc-800/80 p-16 rounded-[32px] text-center text-zinc-400">
           <p className="text-base">No stories shared in the last 30 days. Be the first to share one!</p>
+        </div>
+      )}
+
+      {/* Premium Private Resonance Acknowledgment Modal */}
+      {activeResponse && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/40 dark:bg-zinc-950/60 backdrop-blur-md transition-opacity duration-300">
+          <div className="relative w-full max-w-md p-8 bg-white dark:bg-zinc-900 border border-purple-100/50 dark:border-zinc-800 rounded-[32px] shadow-2xl shadow-purple-950/10 text-center flex flex-col items-center gap-6 transform transition-all scale-100 duration-300 animate-fade-soft">
+            {/* Sparkling Badge */}
+            <div className="p-4 bg-gradient-to-tr from-purple-100 to-indigo-50 dark:from-purple-950/30 dark:to-indigo-950/20 rounded-2xl text-purple-600 dark:text-purple-400">
+              <Sparkles className="w-8 h-8 animate-pulse" />
+            </div>
+            
+            {/* Title & Curated 18-word Message */}
+            <div className="space-y-3">
+              <h3 className="text-lg font-bold text-zinc-950 dark:text-zinc-50">Shared Resonance</h3>
+              <p className="text-zinc-600 dark:text-zinc-400 text-sm leading-relaxed italic px-2">
+                "{activeResponse}"
+              </p>
+            </div>
+            
+            {/* Action button */}
+            <button
+              onClick={() => setActiveResponse(null)}
+              className="w-full py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-2xl font-bold shadow-lg shadow-purple-500/20 hover:shadow-xl transition-all"
+            >
+              Close
+            </button>
+          </div>
         </div>
       )}
     </div>

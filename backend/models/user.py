@@ -40,6 +40,9 @@ class User(Base):
     
     # Crisis intervention settings
     notify_on_crisis = Column(Boolean, default=True)  # Notify counsellor on crisis detection
+    
+    # Focus area for student onboarding recommendations
+    student_role = Column(String, nullable=True)  # first-year, burnout, relationship stress, etc.
 
     # Timestamps
     created_at = Column(DateTime, server_default=func.now(), nullable=False)

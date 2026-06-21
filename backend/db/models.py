@@ -16,3 +16,4 @@ from models.counselling_session import CounsellingSession, SessionStatusEnum
 from models.weekly_insight import WeeklyInsight
 from models.shared_story import SharedStory
 from models.crisis_event import CrisisEvent, CrisisSourceEnum, RiskLevelEnum
+from models.circle import Circle

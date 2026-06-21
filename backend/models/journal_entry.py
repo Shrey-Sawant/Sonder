@@ -38,8 +38,8 @@ class JournalEntry(Base):
     anon_id = Column(String, index=True, nullable=False)  # Denormalized for query speed
     
     # Mood & Prompt
-    mood_selected = Column(Enum(MoodEnum), nullable=False)
-    prompt_category = Column(Enum(PromptCategoryEnum), nullable=False)
+    mood_selected = Column(Enum(MoodEnum, values_callable=lambda x: [e.value for e in x]), nullable=False)
+    prompt_category = Column(Enum(PromptCategoryEnum, values_callable=lambda x: [e.value for e in x]), nullable=False)
     
     # Entry content (encrypted at application level)
     entry_text = Column(Text, nullable=False)

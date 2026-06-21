@@ -34,6 +34,7 @@ class UserResponse(UserBase):
     anon_id: Optional[str] = None
     anon_mode_enabled: Optional[bool] = True
     notify_on_crisis: Optional[bool] = True
+    student_role: Optional[str] = None
     created_at: datetime
 
     class Config:

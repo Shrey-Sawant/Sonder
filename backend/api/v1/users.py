@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from db.session import get_db
@@ -41,6 +42,29 @@ def get_relative_time(dt: datetime) -> str:
 
 @router.get("/me", response_model=UserResponse)
 async def read_users_me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+class UpdateStudentRoleRequest(BaseModel):
+    student_role: str
+
+
+@router.put("/me/student-role", response_model=UserResponse)
+async def update_student_role(
+    request: UpdateStudentRoleRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != "student":
+        raise HTTPException(status_code=403, detail="Only students can set a focus role")
+    
+    valid_roles = ["first-year", "exam season", "placement prep", "relationship stress", "burnout", "identity & belonging"]
+    if request.student_role not in valid_roles:
+        raise HTTPException(status_code=400, detail="Invalid focus area role")
+        
+    current_user.student_role = request.student_role
+    await db.commit()
+    await db.refresh(current_user)
     return current_user
 
 

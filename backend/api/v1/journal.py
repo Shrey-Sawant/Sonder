@@ -20,6 +20,7 @@ from services.mood_companion import get_mood_companion
 from services.crisis_detector import get_crisis_detector
 from models.crisis_event import CrisisEvent
 from services.content_moderator import get_content_moderator
+from services.story_engine import get_story_engine
 
 from pydantic import BaseModel, Field
 
@@ -253,27 +254,29 @@ async def share_entry_anonymously(
         if entry.shared_anonymously:
             raise HTTPException(status_code=400, detail="Entry already shared")
         
-        # Decrypt entry for moderation check
+        # Decrypt entry for processing
         decrypted_text = decrypt_string(entry.entry_text)
         
-        # Content moderation
-        moderator = get_content_moderator()
-        moderation_result = await moderator.check_content_safety(decrypted_text)
+        # Process through Story Engine 3-step pipeline
+        story_engine = get_story_engine()
+        engine_result = await story_engine.process_entry(decrypted_text)
         
-        if not moderation_result["safe"]:
+        if not engine_result["is_safe"]:
             return {
                 "success": False,
-                "message": "This entry is a bit too personal to share — your words are safe with us."
+                "message": engine_result.get("rejection_message") or "This entry is a bit too personal to share — your words are safe with us."
             }
         
-        # Create story (excerpt only, strip identifying info, max 120 chars)
-        excerpt = decrypted_text[:120]
+        # Create story storing the reformatted text in excerpt
+        reformatted_text = engine_result.get("reformatted_text") or decrypted_text
         story = SharedStory(
             story_id=uuid.uuid4(),
             journal_entry_id=entry.entry_id,
             author_anon_id=current_user.anon_id,
-            excerpt=excerpt,
-            mood=entry.mood_selected.value,
+            excerpt=reformatted_text,
+            mood=engine_result.get("mood") or entry.mood_selected.value,
+            theme=engine_result.get("theme"),
+            resonance_hook=engine_result.get("resonance_hook"),
             moderated=True,
             published_at=datetime.utcnow()
         )

@@ -54,6 +54,8 @@ class PeerMessageResponse(BaseModel):
     content: str
     sent_at: datetime
     flagged: bool
+    moderation_status: str
+    moderation_reason: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -229,7 +231,9 @@ async def get_thread_messages(
                 "sender_anon_id": msg.sender_anon_id,
                 "content": decrypt_string(msg.content) if msg.content else "",
                 "sent_at": msg.sent_at,
-                "flagged": msg.flagged
+                "flagged": msg.flagged,
+                "moderation_status": msg.moderation_status,
+                "moderation_reason": msg.moderation_reason
             })
         return results
 
@@ -266,6 +270,42 @@ async def send_peer_message(
         if current_user.anon_id not in thread.participants_anon_ids:
             raise HTTPException(status_code=403, detail="Not authorized to message this thread")
 
+        # Check if the thread is a SUPPORT_CIRCLE to run custom moderation
+        moderation_status = "SAFE"
+        moderation_reason = None
+        
+        if thread.thread_type == ChatThreadTypeEnum.SUPPORT_CIRCLE:
+            from models.circle import Circle
+            from services.message_moderator import get_message_moderator
+            
+            stmt_circle = select(Circle).where(Circle.thread_id == thread.thread_id)
+            res_circle = await db.execute(stmt_circle)
+            circle = res_circle.scalars().first()
+            
+            if circle:
+                moderator = get_message_moderator()
+                moderation_result = await moderator.moderate_message(
+                    request.content,
+                    sensitivity_level=circle.sensitivity_level,
+                    crisis_keywords=circle.crisis_keywords
+                )
+                moderation_status = moderation_result["status"]
+                moderation_reason = moderation_result["reason"]
+                
+        # If BLOCK, raise HTTP 400
+        if moderation_status == "BLOCK":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Message blocked: {moderation_reason}"
+            )
+            
+        # Determine flagging
+        flagged = False
+        flag_reason = None
+        if moderation_status == "HOLD":
+            flagged = True
+            flag_reason = f"Automated HOLD: {moderation_reason}"
+
         # Encrypt content
         encrypted_content = encrypt_string(request.content)
         
@@ -275,7 +315,10 @@ async def send_peer_message(
             thread_id=t_uuid,
             sender_anon_id=current_user.anon_id,
             content=encrypted_content,
-            flagged=False,
+            flagged=flagged,
+            flag_reason=flag_reason,
+            moderation_status=moderation_status,
+            moderation_reason=moderation_reason,
             sent_at=datetime.utcnow()
         )
         db.add(message)
@@ -321,6 +364,8 @@ async def send_peer_message(
                 "content": request.content,
                 "sent_at": message.sent_at.isoformat(),
                 "flagged": message.flagged,
+                "moderation_status": message.moderation_status,
+                "moderation_reason": message.moderation_reason,
                 "crisis_detected": crisis_detected,
                 "crisis_level": crisis_level
             }
@@ -339,7 +384,9 @@ async def send_peer_message(
             "sender_anon_id": message.sender_anon_id,
             "content": request.content,
             "sent_at": message.sent_at,
-            "flagged": message.flagged
+            "flagged": message.flagged,
+            "moderation_status": message.moderation_status,
+            "moderation_reason": message.moderation_reason
         }
 
     except HTTPException as he:

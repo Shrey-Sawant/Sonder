@@ -117,6 +117,8 @@ from api.v1.counselling_sessions import router as counselling_sessions_router
 app.include_router(counselling_sessions_router, prefix="/api/v1", tags=["counselling-sessions"])
 from api.v1.peer_chat import router as peer_chat_router
 app.include_router(peer_chat_router, prefix="/api/v1", tags=["peer-chat"])
+from api.v1.circles import router as circles_router
+app.include_router(circles_router, prefix="/api/v1", tags=["circles"])
 
 from services.scheduler import start_scheduler
 

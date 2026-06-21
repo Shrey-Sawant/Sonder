@@ -14,6 +14,7 @@ interface User {
     anon_id?: string;
     anon_mode_enabled?: boolean;
     notify_on_crisis?: boolean;
+    student_role?: string;
 }
 
 interface AuthContextType {
@@ -21,6 +22,7 @@ interface AuthContextType {
     token: string | null;
     login: (token: string, user: User) => void;
     logout: () => void;
+    updateUser: (user: User) => void;
     isAuthenticated: boolean;
     isStudent: boolean;
     isCounsellor: boolean;
@@ -53,12 +55,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(null);
     };
 
+    const updateUser = (updatedUser: User) => {
+        setUser(updatedUser);
+    };
+
     return (
         <AuthContext.Provider value={{
             user,
             token,
             login,
             logout,
+            updateUser,
             isAuthenticated: !!token,
             isStudent: user?.role === 'student',
             isCounsellor: user?.role === 'counsellor',

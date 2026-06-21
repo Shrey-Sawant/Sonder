@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Sun, CloudRain, Activity, CalendarCheck, CheckCircle2, Heart, ShieldAlert, GraduationCap, Calendar, MessageSquare, AlertCircle } from 'lucide-react';
+import { ArrowRight, Sun, CloudRain, Activity, CalendarCheck, CheckCircle2, Heart, ShieldAlert, GraduationCap, Calendar, MessageSquare, AlertCircle, Sparkles } from 'lucide-react';
 import { ViewState } from '../../types';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';

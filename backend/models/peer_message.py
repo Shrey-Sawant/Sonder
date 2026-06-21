@@ -49,5 +49,9 @@ class PeerMessage(Base):
     flagged = Column(Boolean, default=False)
     flag_reason = Column(String, nullable=True)
     
+    # 4-tier classification: SAFE / SOFT_FLAG / HOLD / BLOCK
+    moderation_status = Column(String, default="SAFE", nullable=False)
+    moderation_reason = Column(String, nullable=True)
+    
     # Timestamps
     sent_at = Column(DateTime, server_default=func.now(), nullable=False)

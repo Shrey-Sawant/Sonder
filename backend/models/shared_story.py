@@ -25,6 +25,10 @@ class SharedStory(Base):
     mood = Column(String, nullable=False)  # From mood_selected
     full_entry_id = Column(UUID(as_uuid=True), nullable=True)  # Reference to full entry if needed
     
+    # AI extracted metadata
+    theme = Column(String, nullable=True)
+    resonance_hook = Column(String, nullable=True)
+    
     # Engagement metrics
     resonance_count = Column(Integer, default=0)  # "I felt this too" counter
     
