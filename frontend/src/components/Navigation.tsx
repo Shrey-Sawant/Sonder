@@ -44,12 +44,10 @@ const Navigation: React.FC<NavigationProps> = ({ currentView, setView }) => {
     <>
       {/* Desktop Sidebar */}
       <nav className="hidden md:flex flex-col w-20 lg:w-64 h-screen bg-[#faf7ff] dark:bg-zinc-950 fixed left-0 top-0 z-50 shadow-sm transition-colors duration-300">
-        <div className="p-6 flex items-center gap-3 bg-white/80 dark:bg-zinc-900/90 rounded-br-[2rem] shadow-sm transition-colors duration-300">
-          <div className="w-12 h-12 relative">
-            <img src={logoName} alt="Sonder logo" className="h-full w-full object-contain" />
-          </div>
-          <span className="hidden lg:block font-semibold text-2xl tracking-tight text-zinc-900 dark:text-white">Sonder</span>
+        <div className="px-6 py-3 flex items-center gap-3 bg-white/80 dark:bg-zinc-900/90 rounded-br-[2rem] shadow-sm transition-colors duration-300">
+          <img src={logoName} alt="Sonder logo" className="h-full w-full object-contain" />
         </div>
+
 
         <div className="flex-1 flex flex-col gap-3 p-4">
           {navItems.map((item) => (
