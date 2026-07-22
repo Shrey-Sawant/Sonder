@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
-import logoLight from '../assest/Logo_light_mode.png';
-import logoDark from '../assest/Logo_dark_mode.png';
+import logo from '../assets/logo (2).png';
 
 interface AuthProps {
     initialMode?: 'login' | 'signup' | 'verify';
@@ -160,8 +159,7 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login' }) => {
                     <div className="w-full max-w-xl bg-white rounded-[32px] shadow-[0_30px_70px_rgba(15,23,42,0.08)] p-10 border border-[#ece9ff] animate-fade-soft">
                         <div className="text-center mb-6">
                             <div className="w-24 h-24 mx-auto mb-4">
-                                <img src={logoLight} alt="Sonder logo" className="h-full w-full object-contain block dark:hidden mx-auto" />
-                                <img src={logoDark} alt="Sonder logo" className="h-full w-full object-contain hidden dark:block mx-auto" />
+                                <img src={logo} alt="Sonder logo" className="h-full w-full object-contain mx-auto" />
                             </div>
                             <h2 className="text-4xl font-semibold text-zinc-900">Verify Your Email</h2>
                             <p className="mt-3 text-base text-zinc-500 max-w-xl mx-auto leading-7">
@@ -207,8 +205,7 @@ const Auth: React.FC<AuthProps> = ({ initialMode = 'login' }) => {
                 <div className="w-full max-w-xl bg-white rounded-[32px] shadow-[0_30px_70px_rgba(15,23,42,0.08)] p-10 border border-[#ece9ff] animate-fade-soft">
                     <div className="text-center mb-8">
                         <div className="w-24 h-24 mx-auto mb-4">
-                            <img src={logoLight} alt="Sonder logo" className="h-full w-full object-contain block dark:hidden mx-auto" />
-                            <img src={logoDark} alt="Sonder logo" className="h-full w-full object-contain hidden dark:block mx-auto" />
+                            <img src={logo} alt="Sonder logo" className="h-full w-full object-contain mx-auto" />
                         </div>
                         <h2 className="text-4xl font-semibold text-zinc-900">
                             {isLogin ? 'Welcome Back' : 'Join Sonder'}

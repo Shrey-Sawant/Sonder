@@ -32,11 +32,11 @@ class CrisisEvent(Base):
     anon_id = Column(String, index=True, nullable=False)
     
     # Event source
-    source = Column(Enum(CrisisSourceEnum), nullable=False)
+    source = Column(Enum(CrisisSourceEnum, values_callable=lambda x: [e.value for e in x]), nullable=False)
     source_id = Column(UUID(as_uuid=True), nullable=True)  # Reference to journal_entry_id, message_id, etc.
     
     # Risk assessment
-    risk_level = Column(Enum(RiskLevelEnum), nullable=False, index=True)
+    risk_level = Column(Enum(RiskLevelEnum, values_callable=lambda x: [e.value for e in x]), nullable=False, index=True)
     
     # Signal details (encrypted)
     signal_text = Column(Text, nullable=True)  # The actual text that triggered it

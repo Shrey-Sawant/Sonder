@@ -21,7 +21,7 @@ class ChatThread(Base):
     thread_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     
     # Thread metadata
-    thread_type = Column(Enum(ChatThreadTypeEnum), nullable=False)
+    thread_type = Column(Enum(ChatThreadTypeEnum, values_callable=lambda x: [e.value for e in x]), nullable=False)
     
     # Participants stored as array of anon_ids (anonymous only)
     participants_anon_ids = Column(ARRAY(String), nullable=False)

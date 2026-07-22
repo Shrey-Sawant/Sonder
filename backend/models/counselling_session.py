@@ -47,7 +47,7 @@ class CounsellingSession(Base):
     recording_url = Column(String, nullable=True)
     
     # Status tracking
-    status = Column(Enum(SessionStatusEnum), default=SessionStatusEnum.SCHEDULED, index=True)
+    status = Column(Enum(SessionStatusEnum, values_callable=lambda x: [e.value for e in x]), default=SessionStatusEnum.SCHEDULED, index=True)
     started_at = Column(DateTime, nullable=True)
     ended_at = Column(DateTime, nullable=True)
     

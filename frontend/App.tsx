@@ -2,8 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Navigation from './src/components/Navigation';
 import ThemeToggle from './src/components/ThemeToggle';
-import logoLight from './src/assest/Logo_with_name_light_mode.png';
-import logoDark from './src/assest/Logo_with_name_dark_mode.png';
+import logoName from './src/assets/logo_name.png';
 import Dashboard from './src/pages/Dashboard';
 import Companion from './src/pages/Companion';
 import Sanctuary from './src/pages/Sanctuary';
@@ -68,8 +67,7 @@ const AppContent: React.FC = () => {
               <header className="sticky top-0 z-40 bg-white/85 dark:bg-zinc-950/95 backdrop-blur-xl p-4 flex justify-between items-center shadow-sm transition-colors duration-300">
                 <div className="md:hidden flex items-center gap-2">
                   <div className="w-24 h-10 relative">
-                    <img src={logoLight} alt="Sonder logo" className="h-full w-auto block dark:hidden" />
-                    <img src={logoDark} alt="Sonder logo" className="h-full w-auto hidden dark:block" />
+                    <img src={logoName} alt="Sonder logo" className="h-full w-auto" />
                   </div>
                 </div>
                 <div className="ml-auto flex gap-4 items-center">

@@ -103,7 +103,8 @@ async def create_circle(
         
     try:
         # 1. Create a ChatThread for this support circle
-        # Owner is the first participant
+        # Note: The thread owner is added as the initial participant in participants_anon_ids.
+        # ChatThreadTypeEnum.SUPPORT_CIRCLE maps to its lowercase database value via the values_callable setting.
         new_thread = ChatThread(
             thread_id=uuid.uuid4(),
             thread_type=ChatThreadTypeEnum.SUPPORT_CIRCLE,
@@ -111,6 +112,11 @@ async def create_circle(
             created_at=datetime.datetime.utcnow()
         )
         db.add(new_thread)
+        
+        # CRITICAL: We call db.flush() here to force SQLAlchemy to send the INSERT command for new_thread
+        # to the database transaction. This makes the thread_id available on the server and satisfies
+        # the ForeignKeyViolation constraint on the circles table before we insert the child Circle record.
+        await db.flush()
         
         # 2. Create the Circle record referencing this thread
         new_circle = Circle(

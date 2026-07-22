@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Boolean, Float, DateTime, Text, Integer
+from sqlalchemy import Column, String, Boolean, Float, DateTime, Text, Integer, FetchedValue
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from db.session import Base
@@ -9,7 +9,7 @@ class User(Base):
     __tablename__ = "users"
 
     # Backward compatibility with integer primary key
-    id = Column(Integer, index=True)
+    id = Column(Integer, index=True, server_default=FetchedValue())
 
     # Primary key: UUID instead of Integer
     user_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
