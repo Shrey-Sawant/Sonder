@@ -2,13 +2,14 @@
 Weekly Insights API v1 - Emotional pattern analysis and recommendations (Async version)
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import desc
 from datetime import datetime, timedelta, date
 from typing import List, Optional
 import uuid
+import logging
 
 from db.session import get_db
 from api.deps import get_current_user
@@ -20,6 +21,8 @@ from services.insight_generator import get_insight_generator
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/insights", tags=["insights"])
+
+logger = logging.getLogger(__name__)
 
 
 # ===== SCHEMAS =====
@@ -76,15 +79,17 @@ async def get_latest_weekly_insight(
             "generated_at": insight.generated_at
         }
     
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error fetching latest insight: {e}")
+        logger.error("Error fetching latest insight: %s", e)
         raise HTTPException(status_code=500, detail="Error fetching insight")
 
 
 @router.get("/weekly/history", response_model=List[WeeklyInsightResponse])
 async def get_insight_history(
-    limit: int = 12,
-    offset: int = 0,
+    limit: int = Query(12, ge=1, le=50),
+    offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -113,8 +118,10 @@ async def get_insight_history(
             for insight in insights
         ]
     
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error fetching insight history: {e}")
+        logger.error("Error fetching insight history: %s", e)
         raise HTTPException(status_code=500, detail="Error fetching history")
 
 
@@ -214,7 +221,9 @@ async def generate_weekly_insight(
             }
         }
     
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
-        print(f"Error generating insight: {e}")
+        logger.error("Error generating insight: %s", e)
         raise HTTPException(status_code=500, detail="Error generating insight")

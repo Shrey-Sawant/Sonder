@@ -1,17 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import and_, select
-from datetime import date, time, datetime
+from datetime import date, time, datetime, timezone
 from uuid import uuid4
-
-# Internal project imports - Ensure these paths match your structure
-from db.session import get_db
-from models.schedule_request import ScheduleRequest
-from models.user import User
-from schemas.schedule import ScheduleRequestCreate, ScheduleRequestResponse
-from api.deps import get_current_user
-from models.notification import Notification
-from utils.email import send_email
+import logging
 
 # Internal project imports - Ensure these paths match your structure
 from db.session import get_db
@@ -24,6 +16,16 @@ from utils.email import send_email
 
 router = APIRouter()
 
+logger = logging.getLogger(__name__)
+
+
+def _normalize_scheduled_time(value: datetime) -> datetime:
+    """Coerce a possibly timezone-aware datetime to naive UTC for the column."""
+    if value.tzinfo is not None:
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+    return value
+
+
 # --- Routes ---
 
 @router.get("/busy-slots")
@@ -34,9 +36,6 @@ async def get_busy_slots(
     current_user: User = Depends(get_current_user),
 ):
     """Returns a list of booked hours (HH:00) for a specific date."""
-    print(f"\n[DEBUG] GET /busy-slots")
-    print(f"-> Params: counsellor_id={counsellor_id}, date={selected_date}")
-    
     start_of_day = datetime.combine(selected_date, time.min)
     end_of_day = datetime.combine(selected_date, time.max)
 
@@ -52,8 +51,7 @@ async def get_busy_slots(
     result = await db.execute(stmt)
     bookings = result.scalars().all()
     busy_slots = [b.scheduled_time.strftime("%H:00") for b in bookings]
-    
-    print(f"-> Found {len(busy_slots)} busy slots: {busy_slots}")
+
     return busy_slots
 
 
@@ -64,25 +62,39 @@ async def create_schedule_request(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    print(f"\n[DEBUG] POST / (Create Schedule)")
-    print(f"-> Incoming JSON: {request.dict()}")
-    print(f"-> Authenticated User: ID={current_user.id}, Role={current_user.role}")
-
     # Ensure variables are strictly Python integers
     try:
         c_id = int(request.counsellor_id)
         s_id = int(current_user.id)
     except (ValueError, TypeError) as e:
-        print(f"-> Error casting IDs: {e}")
         raise HTTPException(status_code=422, detail="IDs must be valid integers")
 
+    # 0. Role + input validation (before touching the database).
+    if current_user.role != "student":
+        raise HTTPException(status_code=403, detail="Only students can book appointments")
+
+    scheduled_time = _normalize_scheduled_time(request.scheduled_time)
+    if scheduled_time <= datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Appointment time must be in the future")
+
+    # 0b. The target must be a real, approved counsellor -- not an arbitrary id.
+    counsellor_res = await db.execute(
+        select(User).where(
+            User.id == c_id,
+            User.role == "counsellor",
+            User.is_verified.is_(True),
+            User.is_approved.is_(True),
+        )
+    )
+    if not counsellor_res.scalars().first():
+        raise HTTPException(status_code=404, detail="Counsellor not found or not approved")
+
     # 1. Conflict Check
-    print(f"-> Checking for conflicts at {request.scheduled_time}")
     conflict_check = await db.execute(
         select(ScheduleRequest).where(
             and_(
                 ScheduleRequest.counsellor_id == c_id,
-                ScheduleRequest.scheduled_time == request.scheduled_time,
+                ScheduleRequest.scheduled_time == scheduled_time,
                 ScheduleRequest.status.in_(["pending", "accepted"])
             )
         )
@@ -90,7 +102,6 @@ async def create_schedule_request(
     
     conflict = conflict_check.scalars().first()
     if conflict:
-        print(f"-> CONFLICT: Slot already taken by Request ID {conflict.id}")
         raise HTTPException(status_code=400, detail="This time slot is already booked.")
 
     # 2. Create a meeting room link and save the entry
@@ -98,7 +109,7 @@ async def create_schedule_request(
     new_request = ScheduleRequest(
         student_id=s_id,
         counsellor_id=c_id,
-        scheduled_time=request.scheduled_time,
+        scheduled_time=scheduled_time,
         video_meeting_url=meeting_url,
         status="pending",
     )
@@ -109,20 +120,20 @@ async def create_schedule_request(
         await db.refresh(new_request)
     except Exception as e:
         await db.rollback()
-        print(f"-> DB ERROR: {str(e)}")
+        logger.error("Failed to save schedule request: %s", e)
         raise HTTPException(status_code=500, detail="Could not save booking")
 
     # 3. Notification for Counselor (optional)
     try:
         notification = Notification(
             user_id=c_id,
-            message=f"New appointment request for {request.scheduled_time.strftime('%Y-%m-%d %H:%M')}.",
+            message=f"New appointment request for {scheduled_time.strftime('%Y-%m-%d %H:%M')}.",
         )
         db.add(notification)
         await db.commit()
     except Exception as e:
         await db.rollback()
-        print(f"-> Notification insert failed, continuing without notification: {e}")
+        logger.warning("Schedule notification insert failed: %s", e)
 
     # 4. Send appointment reminder emails for request creation
     try:
@@ -139,14 +150,14 @@ async def create_schedule_request(
                 "to": student.email,
                 "to_name": student.username,
                 "recipient_name": student.username,
-                "appointment_time": request.scheduled_time.strftime('%Y-%m-%d %H:%M'),
+                "appointment_time": scheduled_time.strftime('%Y-%m-%d %H:%M'),
                 "counsellor_name": counsellor.username,
                 "student_name": student.username,
                 "meeting_url": meeting_url,
                 "meeting_link": meeting_url,
                 "status": "pending",
                 "subject": "Sonder Appointment Request Submitted",
-                "message": f"Your appointment request for {request.scheduled_time.strftime('%Y-%m-%d %H:%M')} has been created. The counselor will confirm it soon.",
+                "message": f"Your appointment request for {scheduled_time.strftime('%Y-%m-%d %H:%M')} has been created. The counselor will confirm it soon.",
             }
             background_tasks.add_task(send_email, student.email, "Sonder Appointment Request", template_params)
 
@@ -157,7 +168,7 @@ async def create_schedule_request(
                 "to": counsellor.email,
                 "to_name": counsellor.username,
                 "recipient_name": counsellor.username,
-                "appointment_time": request.scheduled_time.strftime('%Y-%m-%d %H:%M'),
+                "appointment_time": scheduled_time.strftime('%Y-%m-%d %H:%M'),
                 "counsellor_name": counsellor.username,
                 "student_name": student.username,
                 "meeting_url": meeting_url,
@@ -168,7 +179,7 @@ async def create_schedule_request(
             }
             background_tasks.add_task(send_email, counsellor.email, "New Sonder Appointment Request", counsellor_template_params)
     except Exception as e:
-        print(f"-> Email task scheduling failed: {e}")
+        logger.warning("Schedule email scheduling failed: %s", e)
 
     try:
         await db.refresh(new_request)
@@ -179,11 +190,10 @@ async def create_schedule_request(
         new_request.student_name = s_name_res.scalar_one_or_none()
         new_request.counsellor_name = c_name_res.scalar_one_or_none()
         
-        print(f"-> SUCCESS: Created ScheduleRequest ID {new_request.id}")
         return new_request
     except Exception as e:
         await db.rollback()
-        print(f"-> DB ERROR: {str(e)}")
+        logger.error("Failed to build schedule response: %s", e)
         raise HTTPException(status_code=500, detail="Could not save booking")
 
 
@@ -192,9 +202,6 @@ async def get_schedule_requests(
     db: AsyncSession = Depends(get_db), 
     current_user: User = Depends(get_current_user)
 ):
-    print(f"\n[DEBUG] GET / (List Requests)")
-    print(f"-> User {current_user.id} fetching requests as {current_user.role}")
-
     from sqlalchemy.orm import aliased
     StudentUser = aliased(User)
     CounsellorUser = aliased(User)
@@ -223,7 +230,6 @@ async def get_schedule_requests(
             .where(ScheduleRequest.counsellor_id == current_user.id)
         )
     else:
-        print("-> Admin/Other role: fetching all records")
         stmt = (
             select(
                 ScheduleRequest,
@@ -242,7 +248,6 @@ async def get_schedule_requests(
         req.counsellor_name = row[2]
         items.append(req)
         
-    print(f"-> Returning {len(items)} records.")
     return items
 
 
@@ -254,13 +259,20 @@ async def update_schedule_status(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    print(f"\n[DEBUG] PUT /{request_id}")
-    print(f"-> Action: Status change to '{status}' by User {current_user.id}")
-
     # Authorization Check
     if current_user.role not in ["counsellor", "admin"]:
-        print(f"-> Access Denied: User role '{current_user.role}' unauthorized.")
         raise HTTPException(status_code=403, detail="Not authorized to update status")
+
+    allowed_statuses = {
+        "pending",
+        "accepted",
+        "declined",
+        "rejected",
+        "completed",
+        "cancelled",
+    }
+    if status not in allowed_statuses:
+        raise HTTPException(status_code=400, detail="Invalid appointment status")
 
     result = await db.execute(
         select(ScheduleRequest).where(ScheduleRequest.id == request_id)
@@ -268,24 +280,28 @@ async def update_schedule_status(
     request_obj = result.scalars().first()
     
     if not request_obj:
-        print(f"-> Error: Request {request_id} not found.")
         raise HTTPException(status_code=404, detail="Request not found")
+
+    # A counsellor may only act on their own appointments; admins may act on any.
+    if current_user.role != "admin" and request_obj.counsellor_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Not authorized to update this appointment",
+        )
 
     old_status = request_obj.status
     request_obj.status = status
-    print(f"-> Updating status: {old_status} -> {status}")
 
     try:
         await db.commit()
         await db.refresh(request_obj)
     except Exception as e:
         await db.rollback()
-        print(f"-> DB ERROR on update: {e}")
+        logger.error("Failed to update schedule request %s: %s", request_id, e)
         raise HTTPException(status_code=500, detail="Update failed")
 
     # Create notification for student
     if status in ["accepted", "declined", "rejected"]:
-        print(f"-> Notifying student ID {request_obj.student_id}")
         new_notification = Notification(
             user_id=request_obj.student_id,
             message=f"Your appointment for {request_obj.scheduled_time.strftime('%Y-%m-%d %H:%M')} has been {status}.",
@@ -295,7 +311,7 @@ async def update_schedule_status(
             await db.commit()
         except Exception as e:
             await db.rollback()
-            print(f"-> Notification insert failed, continuing without notification: {e}")
+            logger.warning("Status notification insert failed: %s", e)
 
         # Send confirmation / reminder emails once status changes
         try:
@@ -342,7 +358,7 @@ async def update_schedule_status(
                 }
                 background_tasks.add_task(send_email, counsellor.email, f"Appointment {status.title()} Notification", counsellor_template_params)
         except Exception as e:
-            print(f"-> Email task scheduling failed on status update: {e}")
+            logger.warning("Status email scheduling failed: %s", e)
 
     try:
         await db.refresh(request_obj)
@@ -353,9 +369,8 @@ async def update_schedule_status(
         request_obj.student_name = s_name_res.scalar_one_or_none()
         request_obj.counsellor_name = c_name_res.scalar_one_or_none()
         
-        print("-> Update successful.")
         return request_obj
     except Exception as e:
         await db.rollback()
-        print(f"-> DB ERROR on update: {e}")
+        logger.error("Failed to build update response for schedule request %s: %s", request_id, e)
         raise HTTPException(status_code=500, detail="Update failed")

@@ -80,6 +80,8 @@ async def check_for_crisis_events(
             "message": get_intervention_message(recent_event.risk_level)
         }
     
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Error checking crisis events: {e}")
         raise HTTPException(status_code=500, detail="Error checking status")
@@ -116,6 +118,8 @@ async def resolve_crisis_event(
             "message": "Event marked as resolved. Take care of yourself."
         }
     
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
         print(f"Error resolving crisis event: {e}")
@@ -151,6 +155,8 @@ async def get_crisis_history(
             for event in events
         ]
     
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Error fetching crisis history: {e}")
         raise HTTPException(status_code=500, detail="Error fetching history")
@@ -175,6 +181,8 @@ async def toggle_crisis_notification(
             "message": f"Counsellor notification {'enabled' if notify else 'disabled'}"
         }
     
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
         print(f"Error toggling notification: {e}")
@@ -213,6 +221,8 @@ async def get_flagged_messages(
             for msg in flagged
         ]
     
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Error fetching flagged messages: {e}")
         raise HTTPException(status_code=500, detail="Error fetching queue")

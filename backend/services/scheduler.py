@@ -29,79 +29,104 @@ async def run_weekly_insights_generation():
     Generates weekly insights cards for all student users
     """
     print("[SCHEDULER] Starting weekly insights generation...")
+    generator = get_insight_generator()
+    today = datetime.utcnow().date()
+    week_start = today - timedelta(days=today.weekday())
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+
+    # Phase 1 (short-lived session): gather everything needed up front so the
+    # database connection is not held open across the slow AI generation calls.
     async with SessionLocal() as db:
         try:
-            # Fetch all student users
-            stmt_students = select(User).where(User.role == "student")
-            res_students = await db.execute(stmt_students)
-            students = res_students.scalars().all()
-            
-            generator = get_insight_generator()
-            today = datetime.utcnow().date()
-            week_start = today - timedelta(days=today.weekday())
-            
-            for student in students:
-                try:
-                    # Check if weekly insight already exists
-                    stmt_exist = select(WeeklyInsight).where(
-                        WeeklyInsight.user_id == student.user_id,
-                        WeeklyInsight.week_start == week_start
-                    )
-                    res_exist = await db.execute(stmt_exist)
-                    if res_exist.scalars().first():
-                        continue
-                        
-                    # Fetch student's journal entries from last 30 days
-                    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-                    stmt_entries = (
-                        select(JournalEntry)
-                        .where(
-                            JournalEntry.user_id == student.user_id,
-                            JournalEntry.created_at >= thirty_days_ago
+            students = (
+                await db.execute(select(User).where(User.role == "student"))
+            ).scalars().all()
+            student_ids = [student.user_id for student in students]
+            if not student_ids:
+                print("[SCHEDULER] No students found; nothing to generate.")
+                return
+
+            existing_user_ids = set(
+                (
+                    await db.execute(
+                        select(WeeklyInsight.user_id).where(
+                            WeeklyInsight.user_id.in_(student_ids),
+                            WeeklyInsight.week_start == week_start,
                         )
                     )
-                    res_entries = await db.execute(stmt_entries)
-                    entries = res_entries.scalars().all()
-                    
-                    if len(entries) < 3:
-                        # Need at least 3 entries to generate meaningful insights
-                        continue
-                        
-                    moods = [entry.mood_selected.value for entry in entries]
-                    timestamps = [entry.created_at for entry in entries]
-                    categories = [entry.prompt_category.value for entry in entries]
-                    
-                    insights_data = await generator.generate_weekly_insights(
-                        moods=moods,
-                        timestamps=timestamps,
-                        categories=categories
+                ).scalars().all()
+            )
+
+            entries = (
+                await db.execute(
+                    select(JournalEntry).where(
+                        JournalEntry.user_id.in_(student_ids),
+                        JournalEntry.created_at >= thirty_days_ago,
                     )
-                    
-                    if insights_data:
-                        weekly_card = WeeklyInsight(
-                            insight_id=uuid.uuid4(),
-                            user_id=student.user_id,
-                            week_start=week_start,
-                            observation=insights_data["observation"],
-                            reframe=insights_data["reframe"],
-                            micro_action=insights_data["micro_action"],
-                            mood_frequency_data=insights_data.get("mood_frequency_data"),
-                            trigger_categories=insights_data.get("trigger_categories"),
-                            time_of_day_pattern=insights_data.get("time_of_day_pattern"),
-                            positive_streaks=insights_data.get("positive_streaks"),
-                            generated_at=datetime.utcnow()
-                        )
-                        db.add(weekly_card)
-                        
-                except Exception as se:
-                    print(f"[SCHEDULER] Failed generating weekly insight for user {student.user_id}: {se}")
-                    
-            await db.commit()
-            print("[SCHEDULER] Weekly insights generation completed successfully.")
-            
+                )
+            ).scalars().all()
         except Exception as e:
             await db.rollback()
-            print(f"[SCHEDULER] Error in weekly insights task: {e}")
+            print(f"[SCHEDULER] Error loading data for weekly insights: {e}")
+            return
+
+    entries_by_user: dict = {}
+    for entry in entries:
+        entries_by_user.setdefault(entry.user_id, []).append(entry)
+
+    # Phase 2 (no DB session held): generate insight content.
+    cards = []
+    for student in students:
+        if student.user_id in existing_user_ids:
+            continue
+
+        student_entries = entries_by_user.get(student.user_id, [])
+        if len(student_entries) < 3:
+            # Need at least 3 entries to generate meaningful insights
+            continue
+
+        try:
+            insights_data = await generator.generate_weekly_insights(
+                moods=[entry.mood_selected.value for entry in student_entries],
+                timestamps=[entry.created_at for entry in student_entries],
+                categories=[entry.prompt_category.value for entry in student_entries],
+            )
+        except Exception as se:
+            print(f"[SCHEDULER] Failed generating weekly insight for user {student.user_id}: {se}")
+            continue
+
+        if not insights_data:
+            continue
+
+        cards.append(
+            WeeklyInsight(
+                insight_id=uuid.uuid4(),
+                user_id=student.user_id,
+                week_start=week_start,
+                observation=insights_data["observation"],
+                reframe=insights_data["reframe"],
+                micro_action=insights_data["micro_action"],
+                mood_frequency_data=insights_data.get("mood_frequency_data"),
+                trigger_categories=insights_data.get("trigger_categories"),
+                time_of_day_pattern=insights_data.get("time_of_day_pattern"),
+                positive_streaks=insights_data.get("positive_streaks"),
+                generated_at=datetime.utcnow(),
+            )
+        )
+
+    if not cards:
+        print("[SCHEDULER] Weekly insights generation completed; no new insights to store.")
+        return
+
+    # Phase 3 (short-lived session): persist all generated cards atomically.
+    async with SessionLocal() as db:
+        try:
+            db.add_all(cards)
+            await db.commit()
+            print(f"[SCHEDULER] Weekly insights generation completed. Stored {len(cards)} insights.")
+        except Exception as e:
+            await db.rollback()
+            print(f"[SCHEDULER] Error storing weekly insights: {e}")
 
 
 async def send_post_session_mood_check(session_id_str: str):

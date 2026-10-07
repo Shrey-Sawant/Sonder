@@ -2,7 +2,7 @@
 Journal API v1 - Mood tracking and reflective entry management (Async version)
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import desc
@@ -12,6 +12,7 @@ import uuid
 
 from db.session import get_db
 from api.deps import get_current_user
+from core.limiter import limiter
 from models.user import User
 from models.journal_entry import JournalEntry, MoodEnum, PromptCategoryEnum
 from models.shared_story import SharedStory
@@ -91,7 +92,9 @@ PROMPTS = {
 # ===== ENDPOINTS =====
 
 @router.post("/entries", response_model=dict)
+@limiter.limit("20/minute")
 async def create_journal_entry(
+    request: Request,
     entry_data: JournalEntryCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -169,6 +172,8 @@ async def create_journal_entry(
             "crisis_level": crisis_level
         }
     
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
         print(f"Error creating journal entry: {e}")
@@ -208,6 +213,8 @@ async def list_journal_entries(
         
         return result
     
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Error fetching entries: {e}")
         raise HTTPException(status_code=500, detail="Error fetching entries")
@@ -292,6 +299,8 @@ async def share_entry_anonymously(
             "message": "Shared anonymously! Your story might help someone feel less alone."
         }
     
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
         print(f"Error sharing entry: {e}")

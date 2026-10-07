@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import api, { getWebSocketUrl } from "../services/api";
+import api, { getWebSocketProtocols, getWebSocketUrl } from "../services/api";
 import { Search, MessageSquare, Loader2 } from "lucide-react";
 import ChatPage from "./ChatPage";
 import { useAuth } from "../context/AuthContext";
@@ -53,7 +53,10 @@ const CounsellorChatDashboard: React.FC = () => {
     fetchSessions();
     if (!user?.id || wsRef.current) return;
 
-    const ws = new WebSocket(getWebSocketUrl(`/chat/ws/${user.id}`));
+    const ws = new WebSocket(
+      getWebSocketUrl(`/chat/ws/${user.id}`),
+      getWebSocketProtocols()
+    );
     wsRef.current = ws;
 
     ws.onmessage = (event) => {

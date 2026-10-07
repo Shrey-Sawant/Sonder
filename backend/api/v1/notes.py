@@ -6,6 +6,7 @@ from models.session_note import SessionNote
 from models.user import User
 from schemas.session_note import SessionNoteCreate, SessionNoteResponse
 from api.deps import get_current_user
+from services.care_relationships import student_belongs_to_counsellor
 
 router = APIRouter()
 
@@ -41,6 +42,19 @@ async def create_note(
     student = s_res.scalars().first()
     if not student:
         raise HTTPException(status_code=404, detail="Student user not found")
+    
+    if current_user.role != "admin":
+        relationship = await db.execute(
+            select(User.id).where(
+                User.id == student.id,
+                student_belongs_to_counsellor(current_user, User.id, User.user_id),
+            )
+        )
+        if relationship.scalar_one_or_none() is None:
+            raise HTTPException(
+                status_code=403,
+                detail="Student is not assigned to this counsellor",
+            )
         
     new_note = SessionNote(
         counsellor_id=current_user.id,

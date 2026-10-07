@@ -6,9 +6,16 @@ import os
 from models.chat_session import ChatSession
 from models.chat_message import ChatMessage
 
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+_api_key = os.getenv("GROQ_API_KEY")
+client = Groq(api_key=_api_key) if _api_key else None
 
 async def chat_with_ai(user_id: int, user_message: str, db: AsyncSession):
+    if client is None:
+        return (
+            "I'm having trouble reaching my support service right now. "
+            "Please try again in a moment."
+        )
+
     result = await db.execute(
         select(ChatSession).where(
             ChatSession.student_id == user_id,

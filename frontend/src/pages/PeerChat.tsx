@@ -5,7 +5,7 @@ import {
   Compass, ShieldAlert, CheckCircle2, Lock, Loader2, ArrowLeft,
   Volume2
 } from 'lucide-react';
-import api, { getWebSocketUrl } from '../services/api';
+import api, { getWebSocketProtocols, getWebSocketUrl } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 interface Thread {
@@ -136,7 +136,7 @@ const PeerChat: React.FC = () => {
     if (!user?.anon_id) return;
 
     const wsUrl = getWebSocketUrl(`/peer_chat/ws/${user.anon_id}`);
-    const ws = new WebSocket(wsUrl);
+    const ws = new WebSocket(wsUrl, getWebSocketProtocols());
     wsRef.current = ws;
 
     ws.onopen = () => {

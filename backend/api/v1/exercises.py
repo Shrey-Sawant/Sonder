@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone, date
 from db.session import get_db
 from models.exercise import ExerciseCompletion
 from schemas.wellness import ExerciseCompletionCreate, ExerciseCompletionResponse
-from api.v1.auth import get_current_user
+from api.deps import get_current_user
 from models.user import User
 
 router = APIRouter()

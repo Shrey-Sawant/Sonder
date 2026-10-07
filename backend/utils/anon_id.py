@@ -4,7 +4,7 @@ Format: [adjective][noun][3-digit number]
 Example: calmRiver247, quietMoon091, boldEcho513
 """
 
-import random
+import secrets
 from typing import Optional
 
 
@@ -31,9 +31,9 @@ def generate_anon_id() -> str:
     Returns:
         str: Unique anonymous ID
     """
-    adjective = random.choice(ADJECTIVES)
-    noun = random.choice(NOUNS)
-    number = str(random.randint(0, 999)).zfill(3)
+    adjective = secrets.choice(ADJECTIVES)
+    noun = secrets.choice(NOUNS)
+    number = str(secrets.randbelow(1000)).zfill(3)
     
     # Format: adjective + capitalized noun + number
     return f"{adjective}{noun[0].upper()}{noun[1:]}{number}"

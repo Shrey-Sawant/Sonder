@@ -11,6 +11,7 @@ from typing import List, Optional
 import uuid
 import random
 import re
+import logging
 
 from db.session import get_db
 from api.deps import get_current_user
@@ -23,6 +24,9 @@ from core.encryption import decrypt_string
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/stories", tags=["stories"])
+
+
+logger = logging.getLogger(__name__)
 
 
 # ===== SCHEMAS =====
@@ -208,7 +212,7 @@ async def get_story_feed(
         ]
         
     except Exception as e:
-        print(f"Error fetching stories: {e}")
+        logger.error("Error fetching stories: %s", e)
         raise HTTPException(status_code=500, detail="Error fetching stories")
 
 
@@ -247,16 +251,19 @@ async def resonate_with_story(
             "resonance_response": random.choice(RESONANCE_RESPONSES)
         }
     
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
-        print(f"Error marking resonance: {e}")
+        logger.error("Error marking resonance: %s", e)
         raise HTTPException(status_code=500, detail="Error marking resonance")
 
 
 @router.get("/{story_id}")
 async def get_story_details(
     story_id: str,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get full story details"""
     try:
@@ -284,8 +291,10 @@ async def get_story_details(
             "resonance_hook": story.resonance_hook
         }
     
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error fetching story details: {e}")
+        logger.error("Error fetching story details: %s", e)
         raise HTTPException(status_code=500, detail="Error fetching story")
 
 
@@ -315,7 +324,9 @@ async def delete_story(
         
         return {"success": True, "message": "Story removed from feed"}
     
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
-        print(f"Error deleting story: {e}")
+        logger.error("Error deleting story: %s", e)
         raise HTTPException(status_code=500, detail="Error deleting story")

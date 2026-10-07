@@ -1,7 +1,11 @@
 import os
+import secrets
+from pathlib import Path
+
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load backend/.env regardless of the process working directory.
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 
 class Settings:
@@ -18,7 +22,13 @@ class Settings:
     # =========================
     # AUTH
     # =========================
-    SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey")
+    ENVIRONMENT = os.getenv("ENV", "development").lower()
+    SECRET_KEY = os.getenv("SECRET_KEY")
+    if not SECRET_KEY:
+        if ENVIRONMENT in {"prod", "production"}:
+            raise RuntimeError("SECRET_KEY must be configured in production")
+        # Keep local development usable without a known, reusable signing key.
+        SECRET_KEY = secrets.token_urlsafe(32)
     ALGORITHM = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -49,6 +59,11 @@ class Settings:
     # OPTIONAL (if you still use Resend somewhere)
     # =========================
     RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+
+    # =========================
+    # AI PROVIDER (GROQ)
+    # =========================
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 
 settings = Settings()

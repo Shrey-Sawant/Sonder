@@ -26,4 +26,14 @@ export const getWebSocketUrl = (endpoint: string): string => {
     return `${wsUrl}/api/v1${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 };
 
+/**
+ * Subprotocols for an authenticated WebSocket handshake. The JWT travels in
+ * `Sec-WebSocket-Protocol` rather than the query string so it is not captured
+ * in access logs or referrers.
+ */
+export const getWebSocketProtocols = (): string[] => {
+    const token = localStorage.getItem('token');
+    return token ? ['sonder-auth', token] : [];
+};
+
 export default api;

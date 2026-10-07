@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Boolean, Float, DateTime, Text, Integer, FetchedValue
+from sqlalchemy import Column, String, Boolean, Float, DateTime, Text, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from db.session import Base
@@ -8,11 +8,19 @@ from db.session import Base
 class User(Base):
     __tablename__ = "users"
 
-    # Backward compatibility with integer primary key
-    id = Column(Integer, index=True, server_default=FetchedValue())
+    # Integer surrogate key -- the live database's primary key (users_pkey).
+    # Every appointment/chat/note foreign key references this column.
+    id = Column(Integer, primary_key=True, index=True)
 
-    # Primary key: UUID instead of Integer
-    user_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # Stable public UUID. Unique, but *not* the primary key: the live schema
+    # keeps `id` as the PK, so ORM identity must track it too.
+    user_id = Column(
+        UUID(as_uuid=True),
+        unique=True,
+        nullable=False,
+        default=uuid.uuid4,
+        server_default=func.gen_random_uuid(),
+    )
     
     # Anonymous identity system
     anon_id = Column(String, unique=True, index=True, nullable=False)  # e.g., "calmRiver247"

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Send, ChevronLeft, Loader2, Shield, MoreVertical } from "lucide-react";
-import api, { getWebSocketUrl } from "../services/api";
+import api, { getWebSocketProtocols, getWebSocketUrl } from "../services/api";
 
 const ChatPage = ({ recipient, onBack, currentUser }) => {
   const [messages, setMessages] = useState([]);
@@ -29,7 +29,10 @@ const ChatPage = ({ recipient, onBack, currentUser }) => {
         const histRes = await api.get(`/chat/messages/${sessRes.data.id}`);
         if (isMounted) setMessages(histRes.data);
 
-        const ws = new WebSocket(getWebSocketUrl(`/chat/ws/${currentUser.id}`));
+        const ws = new WebSocket(
+            getWebSocketUrl(`/chat/ws/${currentUser.id}`),
+            getWebSocketProtocols()
+        );
         socket.current = ws;
         ws.onmessage = (event) => {
           const data = JSON.parse(event.data);

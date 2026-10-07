@@ -10,18 +10,33 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import uuid
 import json
+import logging
 
 from db.session import get_db
-from api.deps import get_current_user
+from db.session import SessionLocal
+from api.deps import extract_ws_token, get_current_user, ws_auth_subprotocol
 from models.user import User
 from models.peer_message import PeerMessage, ChatThread, ChatThreadTypeEnum
 from models.crisis_event import CrisisEvent
 from core.encryption import encrypt_string, decrypt_string
 from services.crisis_detector import get_crisis_detector
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from jose import JWTError, jwt
+from config.settings import settings
 
 router = APIRouter(prefix="/peer_chat", tags=["peer-chat"])
+
+
+logger = logging.getLogger(__name__)
+
+
+def _parse_uuid(value: str) -> uuid.UUID:
+    """Parse a UUID value, returning 404 instead of a 500 for malformed input."""
+    try:
+        return uuid.UUID(value)
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(status_code=404, detail="Not found")
 
 
 # ===== SCHEMAS =====
@@ -44,7 +59,7 @@ class ChatThreadResponse(BaseModel):
 
 class PeerMessageCreate(BaseModel):
     thread_id: str
-    content: str
+    content: str = Field(..., min_length=1, max_length=5000)
 
 
 class PeerMessageResponse(BaseModel):
@@ -62,7 +77,7 @@ class PeerMessageResponse(BaseModel):
 
 
 class ReportMessageRequest(BaseModel):
-    reason: str
+    reason: str = Field(..., min_length=1, max_length=500)
 
 
 # ===== WEBSOCKET CONNECTION MANAGER =====
@@ -71,15 +86,17 @@ class PeerConnectionManager:
     def __init__(self):
         self.active_connections: Dict[str, WebSocket] = {}
 
-    async def connect(self, anon_id: str, websocket: WebSocket):
-        await websocket.accept()
+    async def connect(
+        self, anon_id: str, websocket: WebSocket, subprotocol: Optional[str] = None
+    ):
+        await websocket.accept(subprotocol=subprotocol)
         self.active_connections[anon_id] = websocket
-        print(f"[WS] User {anon_id} connected. Active connections: {list(self.active_connections.keys())}")
+        logger.info("Peer WS connected (%d active connections)", len(self.active_connections))
 
     def disconnect(self, anon_id: str):
         if anon_id in self.active_connections:
             del self.active_connections[anon_id]
-            print(f"[WS] User {anon_id} disconnected.")
+            logger.info("Peer WS disconnected")
 
     async def send_personal_message(self, message: dict, anon_id: str):
         if anon_id in self.active_connections:
@@ -87,12 +104,12 @@ class PeerConnectionManager:
                 await self.active_connections[anon_id].send_json(message)
                 return True
             except Exception as e:
-                print(f"[WS] Failed to send to {anon_id}: {e}")
+                logger.warning("Peer WS send failed: %s", e)
                 return False
         return False
 
     async def broadcast_to_thread(self, thread_id: str, message: dict, participants: List[str]):
-        print(f"[WS] Broadcasting message to thread {thread_id} for participants {participants}")
+        logger.debug("Broadcasting peer message to %d participants", len(participants))
         for p in participants:
             await self.send_personal_message(message, p)
 
@@ -108,7 +125,26 @@ async def websocket_endpoint(websocket: WebSocket, anon_id: str):
     WebSocket endpoint for real-time peer chat
     Connections are mapped by anon_id
     """
-    await manager.connect(anon_id, websocket)
+    token = extract_ws_token(websocket)
+    if not token:
+        await websocket.close(code=4401)
+        return
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        email = payload.get("sub")
+        if not email:
+            raise JWTError("Missing subject")
+        async with SessionLocal() as db:
+            result = await db.execute(select(User).where(User.email == email))
+            user = result.scalars().first()
+        if not user or user.anon_id != anon_id:
+            await websocket.close(code=4403)
+            return
+    except JWTError:
+        await websocket.close(code=4401)
+        return
+
+    await manager.connect(anon_id, websocket, ws_auth_subprotocol(websocket))
     try:
         while True:
             # Keep connection alive, listen for incoming messages if any
@@ -119,7 +155,7 @@ async def websocket_endpoint(websocket: WebSocket, anon_id: str):
     except WebSocketDisconnect:
         manager.disconnect(anon_id)
     except Exception as e:
-        print(f"[WS] Connection error for {anon_id}: {e}")
+        logger.warning("Peer WS connection error: %s", e)
         manager.disconnect(anon_id)
 
 
@@ -171,7 +207,7 @@ async def get_or_create_thread(
         raise he
     except Exception as e:
         await db.rollback()
-        print(f"Error creating thread: {e}")
+        logger.error("Error creating peer thread: %s", e)
         raise HTTPException(status_code=500, detail="Error creating thread")
 
 
@@ -190,7 +226,7 @@ async def get_threads(
         res = await db.execute(stmt)
         return res.scalars().all()
     except Exception as e:
-        print(f"Error listing threads: {e}")
+        logger.error("Error listing peer threads: %s", e)
         raise HTTPException(status_code=500, detail="Error listing threads")
 
 
@@ -202,7 +238,7 @@ async def get_thread_messages(
 ):
     """Get message history for a thread (decrypted)"""
     try:
-        t_uuid = uuid.UUID(thread_id)
+        t_uuid = _parse_uuid(thread_id)
         
         # Verify user is in thread
         stmt_thread = select(ChatThread).where(ChatThread.thread_id == t_uuid)
@@ -240,7 +276,7 @@ async def get_thread_messages(
     except HTTPException as he:
         raise he
     except Exception as e:
-        print(f"Error listing messages: {e}")
+        logger.error("Error listing peer messages: %s", e)
         raise HTTPException(status_code=500, detail="Error listing messages")
 
 
@@ -257,7 +293,7 @@ async def send_peer_message(
     - Broadcasts over WebSockets
     """
     try:
-        t_uuid = uuid.UUID(request.thread_id)
+        t_uuid = _parse_uuid(request.thread_id)
         
         # Verify user is in thread
         stmt_thread = select(ChatThread).where(ChatThread.thread_id == t_uuid)
@@ -393,7 +429,7 @@ async def send_peer_message(
         raise he
     except Exception as e:
         await db.rollback()
-        print(f"Error sending peer message: {e}")
+        logger.error("Error sending peer message: %s", e)
         raise HTTPException(status_code=500, detail="Error sending message")
 
 
@@ -409,13 +445,22 @@ async def report_peer_message(
     Flagged messages go to admin queue
     """
     try:
-        m_uuid = uuid.UUID(message_id)
+        m_uuid = _parse_uuid(message_id)
         stmt = select(PeerMessage).where(PeerMessage.message_id == m_uuid)
         res = await db.execute(stmt)
         message = res.scalars().first()
         
         if not message:
             raise HTTPException(status_code=404, detail="Message not found")
+        # Only participants of the message's thread may report it.
+        stmt_thread = select(ChatThread).where(ChatThread.thread_id == message.thread_id)
+        res_thread = await db.execute(stmt_thread)
+        thread = res_thread.scalars().first()
+        if not thread or current_user.anon_id not in thread.participants_anon_ids:
+            raise HTTPException(status_code=403, detail="Not authorized to report this message")
+
+        if message.sender_anon_id == current_user.anon_id:
+            raise HTTPException(status_code=400, detail="Cannot report your own message")
             
         message.flagged = True
         message.flag_reason = request.reason
@@ -431,5 +476,5 @@ async def report_peer_message(
         raise he
     except Exception as e:
         await db.rollback()
-        print(f"Error reporting message: {e}")
+        logger.error("Error reporting peer message: %s", e)
         raise HTTPException(status_code=500, detail="Error reporting message")

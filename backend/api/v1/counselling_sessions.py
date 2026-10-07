@@ -5,9 +5,10 @@ Counselling Sessions API v1 - Video sessions with optional anonymity (Async vers
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 import uuid
+import logging
 
 from db.session import get_db
 from api.deps import get_current_user
@@ -15,9 +16,19 @@ from models.user import User
 from models.counselling_session import CounsellingSession, SessionStatusEnum
 from core.encryption import encrypt_string, decrypt_string
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/sessions", tags=["counselling-sessions"])
+
+logger = logging.getLogger(__name__)
+
+
+def _parse_uuid(value: str) -> uuid.UUID:
+    """Parse a UUID path/body value, returning 404 instead of a 500 on garbage."""
+    try:
+        return uuid.UUID(value)
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(status_code=404, detail="Not found")
 
 
 # ===== SCHEMAS =====
@@ -25,7 +36,7 @@ router = APIRouter(prefix="/sessions", tags=["counselling-sessions"])
 class BookSessionRequest(BaseModel):
     counsellor_id: str
     scheduled_at: datetime
-    duration_minutes: int = 60
+    duration_minutes: int = Field(default=60, ge=15, le=480)
     anon_mode: bool = True  # Default to anonymous
 
 
@@ -34,7 +45,7 @@ class JoinSessionRequest(BaseModel):
 
 
 class SessionNotesRequest(BaseModel):
-    notes: str
+    notes: str = Field(..., min_length=1, max_length=20000)
 
 
 class SessionResponse(BaseModel):
@@ -62,7 +73,7 @@ async def book_counselling_session(
     try:
         # Verify counsellor exists and is verified
         stmt = select(User).where(
-            User.user_id == uuid.UUID(request.counsellor_id),
+            User.user_id == _parse_uuid(request.counsellor_id),
             User.role == "counsellor"
         )
         res = await db.execute(stmt)
@@ -71,8 +82,11 @@ async def book_counselling_session(
         if not counsellor:
             raise HTTPException(status_code=404, detail="Counsellor not found or not verified")
         
-        # Check if time is in future
-        if request.scheduled_at < datetime.utcnow():
+        # Normalise to naive UTC before comparing/storing (the column is naive).
+        scheduled_at = request.scheduled_at
+        if scheduled_at.tzinfo is not None:
+            scheduled_at = scheduled_at.astimezone(timezone.utc).replace(tzinfo=None)
+        if scheduled_at <= datetime.utcnow():
             raise HTTPException(status_code=400, detail="Scheduled time must be in the future")
         
         # Create session
@@ -81,7 +95,7 @@ async def book_counselling_session(
             student_anon_id=current_user.anon_id,
             student_user_id=current_user.user_id,
             counsellor_id=counsellor.user_id,
-            scheduled_at=request.scheduled_at,
+            scheduled_at=scheduled_at,
             duration_minutes=request.duration_minutes,
             anon_mode=request.anon_mode,
             status=SessionStatusEnum.SCHEDULED
@@ -102,9 +116,11 @@ async def book_counselling_session(
             "status": session.status.value
         }
     
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
-        print(f"Error booking session: {e}")
+        logger.error("Error booking session: %s", e)
         raise HTTPException(status_code=500, detail="Error booking session")
 
 
@@ -132,8 +148,10 @@ async def list_counselling_sessions(
             }
             for s in sessions
         ]
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error listing sessions: {e}")
+        logger.error("Error listing sessions: %s", e)
         raise HTTPException(status_code=500, detail="Error listing sessions")
 
 
@@ -149,7 +167,7 @@ async def get_session_join_info(
     """
     try:
         stmt = select(CounsellingSession).where(
-            CounsellingSession.session_id == uuid.UUID(session_id)
+            CounsellingSession.session_id == _parse_uuid(session_id)
         )
         res = await db.execute(stmt)
         session = res.scalars().first()
@@ -193,8 +211,10 @@ async def get_session_join_info(
             "recording_enabled": session.recording_enabled
         }
     
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error getting join info: {e}")
+        logger.error("Error getting join info: %s", e)
         raise HTTPException(status_code=500, detail="Error getting session info")
 
 
@@ -207,7 +227,7 @@ async def start_session(
     """Mark session as ongoing"""
     try:
         stmt = select(CounsellingSession).where(
-            CounsellingSession.session_id == uuid.UUID(session_id)
+            CounsellingSession.session_id == _parse_uuid(session_id)
         )
         res = await db.execute(stmt)
         session = res.scalars().first()
@@ -215,6 +235,9 @@ async def start_session(
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
         
+        if current_user.user_id not in {session.student_user_id, session.counsellor_id}:
+            raise HTTPException(status_code=403, detail="Not authorized to start this session")
+
         if session.status != SessionStatusEnum.SCHEDULED:
             raise HTTPException(status_code=400, detail="Session must be scheduled to start")
         
@@ -224,9 +247,11 @@ async def start_session(
         
         return {"success": True, "status": "ongoing"}
     
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
-        print(f"Error starting session: {e}")
+        logger.error("Error starting session: %s", e)
         raise HTTPException(status_code=500, detail="Error starting session")
 
 
@@ -241,7 +266,7 @@ async def end_session(
     """
     try:
         stmt = select(CounsellingSession).where(
-            CounsellingSession.session_id == uuid.UUID(session_id)
+            CounsellingSession.session_id == _parse_uuid(session_id)
         )
         res = await db.execute(stmt)
         session = res.scalars().first()
@@ -249,6 +274,9 @@ async def end_session(
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
         
+        if current_user.user_id not in {session.student_user_id, session.counsellor_id}:
+            raise HTTPException(status_code=403, detail="Not authorized to end this session")
+
         if session.status != SessionStatusEnum.ONGOING:
             raise HTTPException(status_code=400, detail="Session must be ongoing to end")
         
@@ -270,9 +298,9 @@ async def end_session(
                 id=f"mood_check_{session.session_id}",
                 replace_existing=True
             )
-            print(f"[SCHEDULER] Scheduled mood check for session {session.session_id} at {run_time}")
+            logger.info("Scheduled mood check for session %s", session.session_id)
         except Exception as se:
-            print(f"[SCHEDULER] Failed to schedule background check-in: {se}")
+            logger.warning("Failed to schedule background check-in: %s", se)
         
         return {
             "success": True,
@@ -280,9 +308,11 @@ async def end_session(
             "message": "Session ended. Mood check-in will be sent in 30 minutes."
         }
     
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
-        print(f"Error ending session: {e}")
+        logger.error("Error ending session: %s", e)
         raise HTTPException(status_code=500, detail="Error ending session")
 
 
@@ -298,7 +328,7 @@ async def add_session_notes(
     """
     try:
         stmt = select(CounsellingSession).where(
-            CounsellingSession.session_id == uuid.UUID(session_id)
+            CounsellingSession.session_id == _parse_uuid(session_id)
         )
         res = await db.execute(stmt)
         session = res.scalars().first()
@@ -321,9 +351,11 @@ async def add_session_notes(
             "message": "Session notes saved securely"
         }
     
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
-        print(f"Error adding session notes: {e}")
+        logger.error("Error adding session notes: %s", e)
         raise HTTPException(status_code=500, detail="Error adding notes")
 
 
@@ -336,7 +368,7 @@ async def get_session_notes(
     """Get encrypted session notes (counsellor only)"""
     try:
         stmt = select(CounsellingSession).where(
-            CounsellingSession.session_id == uuid.UUID(session_id)
+            CounsellingSession.session_id == _parse_uuid(session_id)
         )
         res = await db.execute(stmt)
         session = res.scalars().first()
@@ -355,6 +387,8 @@ async def get_session_notes(
             "notes": decrypted_notes
         }
     
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error fetching notes: {e}")
+        logger.error("Error fetching notes: %s", e)
         raise HTTPException(status_code=500, detail="Error fetching notes")

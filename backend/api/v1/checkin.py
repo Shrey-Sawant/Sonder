@@ -4,8 +4,9 @@ from sqlalchemy import select, desc
 from db.session import get_db
 from models.checkin import CheckIn
 from schemas.wellness import CheckInCreate, CheckInResponse
-from api.v1.auth import get_current_user
+from api.deps import get_current_user
 from models.user import User
+from services.care_relationships import student_belongs_to_counsellor
 from datetime import datetime, timedelta, timezone
 
 router = APIRouter()
@@ -20,20 +21,24 @@ async def get_alerts(
         raise HTTPException(status_code=403, detail="Not authorized")
     
     stmt = (
-        select(CheckIn, User.username, User.email)
+        select(CheckIn, User.username)
         .join(User, CheckIn.user_id == User.id)
         .where(CheckIn.alert_triggered == 1, CheckIn.is_resolved == False)
-        .order_by(desc(CheckIn.created_at))
     )
+    # Counsellors only see alerts for students they are responsible for.
+    if current_user.role != "admin":
+        stmt = stmt.where(
+            student_belongs_to_counsellor(current_user, CheckIn.user_id, User.user_id)
+        )
+    stmt = stmt.order_by(desc(CheckIn.created_at))
+
     res = await db.execute(stmt)
     alerts = []
-    for row in res.all():
-        ci, username, email = row
+    for ci, username in res.all():
         alerts.append({
             "id": ci.id,
             "studentId": ci.user_id,
             "studentName": username,
-            "studentEmail": email,
             "score": ci.score,
             "reason": f"PHQ-2 score is {ci.score}/6 (Interest score: {ci.q1_score}, Depressed score: {ci.q2_score}).",
             "timestamp": ci.created_at.isoformat(),
@@ -51,7 +56,16 @@ async def resolve_alert(
     if current_user.role not in ["counsellor", "admin"]:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    res = await db.execute(select(CheckIn).where(CheckIn.id == checkin_id))
+    stmt = (
+        select(CheckIn)
+        .join(User, CheckIn.user_id == User.id)
+        .where(CheckIn.id == checkin_id)
+    )
+    if current_user.role != "admin":
+        stmt = stmt.where(
+            student_belongs_to_counsellor(current_user, CheckIn.user_id, User.user_id)
+        )
+    res = await db.execute(stmt)
     ci = res.scalars().first()
     if not ci:
         raise HTTPException(status_code=404, detail="Alert not found")

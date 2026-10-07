@@ -2,9 +2,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi import FastAPI
+import os
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from config.settings import settings
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from starlette.middleware.base import BaseHTTPMiddleware
+
+from core.limiter import limiter
 from api.v1.chatbot import router as chatbot_router
 from api.v1.auth import router as auth_router
 from api.v1.users import router as users_router
@@ -14,64 +21,29 @@ from api.v1.ratings import router as ratings_router
 from api.v1.journal import router as journal_router
 from api.v1.exercises import router as exercises_router
 from api.v1.checkin import router as checkin_router
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
-import json
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import JSONResponse
-import html
 
 app = FastAPI(title="Sonder API")
 
-limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Input Sanitization Middleware
-class SanitizationMiddleware(BaseHTTPMiddleware):
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Attach a small set of hardening headers to every response."""
+
     async def dispatch(self, request: Request, call_next):
-        # We only sanitize JSON bodies for this simple implementation
-        if request.method in ("POST", "PUT", "PATCH") and request.headers.get("content-type") == "application/json":
-            try:
-                body = await request.body()
-                if body:
-                    data = json.loads(body)
-                    
-                    def sanitize(obj):
-                        if isinstance(obj, str):
-                            # Very basic XSS strip
-                            return obj.replace("<script>", "").replace("</script>", "")
-                        elif isinstance(obj, dict):
-                            return {k: sanitize(v) for k, v in obj.items()}
-                        elif isinstance(obj, list):
-                            return [sanitize(i) for i in obj]
-                        return obj
-                        
-                    sanitized_data = sanitize(data)
-                    
-                    # Override request body
-                    async def receive():
-                        return {"type": "http.request", "body": json.dumps(sanitized_data).encode("utf-8")}
-                    request._receive = receive
-            except Exception:
-                pass # Ignore parsing errors, let FastAPI handle it
-        
         response = await call_next(request)
-        
-        # Standardized Error Envelope
-        if response.status_code >= 400 and response.headers.get("content-type") == "application/json":
-            # Just an example of how to wrap it, though in a real app we'd use exception handlers for everything
-            pass
-            
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault("Permissions-Policy", "geolocation=()")
         return response
 
-app.add_middleware(SanitizationMiddleware)
 
-import os
+app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
-# CORS
+# CORS: only the known first-party origins may call the API with credentials.
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
@@ -122,6 +94,7 @@ app.include_router(circles_router, prefix="/api/v1", tags=["circles"])
 
 from services.scheduler import start_scheduler
 
+
 @app.on_event("startup")
 async def startup_event():
     start_scheduler()
@@ -129,4 +102,4 @@ async def startup_event():
 
 @app.get("/")
 def check_health():
-    return {"msg": settings.DB_NAME, "status": "ok", "version": "1.0"}
+    return {"status": "ok", "version": "1.0"}

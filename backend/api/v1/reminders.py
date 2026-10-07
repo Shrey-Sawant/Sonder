@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from db.session import get_db
 from models.reminder import Reminder
-from api.v1.auth import get_current_user
+from api.deps import get_current_user
 from models.user import User
 from pydantic import BaseModel
 from typing import Any, Dict

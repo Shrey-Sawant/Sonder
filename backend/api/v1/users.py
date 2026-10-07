@@ -8,6 +8,7 @@ from models.user import User
 from models.checkin import CheckIn
 from models.journal_entry import JournalEntry
 from models.exercise import ExerciseCompletion
+from services.care_relationships import student_belongs_to_counsellor
 from api.deps import get_current_user
 from datetime import datetime, timezone
 import math
@@ -88,7 +89,16 @@ async def get_my_students(
     if current_user.role not in ["counsellor", "admin"]:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    result = await db.execute(select(User).where(User.role == "student"))
+    if current_user.role == "admin":
+        student_stmt = select(User).where(User.role == "student")
+    else:
+        # Never expose the full student directory to a counsellor.
+        student_stmt = select(User).where(
+            User.role == "student",
+            student_belongs_to_counsellor(current_user, User.id, User.user_id),
+        )
+
+    result = await db.execute(student_stmt)
     students = result.scalars().all()
     
     student_list = []
@@ -195,11 +205,36 @@ async def reject_counsellor(
     return {"message": "Application rejected and user removed"}
 
 
-@router.get("/", response_model=list[UserResponse])
-async def read_users(role: str = None, db: AsyncSession = Depends(get_db)):
-    if role:
-        stmt = select(User).where(User.role == role)
+@router.get("/")
+async def read_users(
+    role: str = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # This endpoint backs the counsellor directory and peer discovery. Never
+    # allow callers to enumerate admins or counsellor applicants.
+    if current_user.role not in {"student", "admin"}:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if role is None and current_user.role == "admin":
+        stmt = select(User).where(User.role.in_(["student", "counsellor"]))
+    elif role not in {"student", "counsellor"}:
+        raise HTTPException(status_code=400, detail="Unsupported directory role")
     else:
-        stmt = select(User)
+        stmt = select(User).where(User.role == role)
+    stmt = stmt.where(User.is_approved.is_(True), User.is_verified.is_(True))
     result = await db.execute(stmt)
-    return result.scalars().all()
+    users = result.scalars().all()
+    return [
+        {
+            "id": user.id,
+            "username": user.username,
+            "role": user.role,
+            "anon_id": user.anon_id,
+            "rating": user.rating,
+            "experience": user.experience,
+            "certification": user.certification,
+            "is_available": user.is_available,
+            **({"email": user.email} if current_user.role == "admin" else {}),
+        }
+        for user in users
+    ]
